@@ -2,6 +2,8 @@
 
 Policy-gated execution for a Binance AI Agent: the agent can plan and request a Spot action, but AgentGuard only permits actions inside an explicit budget, symbol, market and slippage policy. Every permitted action is independently checked after execution and produces a tamper-evident receipt.
 
+**Live judge demo:** [0xcaptain888.github.io/binance-agentguard](https://0xcaptain888.github.io/binance-agentguard/)
+
 ## The judge path
 
 ```text
