@@ -6,11 +6,11 @@ Binance AgentGuard
 
 ## One-line pitch
 
-The policy and verification control plane that lets AI Agents act on Binance without giving them unchecked authority.
+The accountable action layer that lets AI Agents act on Binance without giving them unchecked authority.
 
 ## Short description
 
-Binance AgentGuard converts a natural-language trading goal into a bounded Binance Spot intent, checks symbol, market, budget, slippage, and user-confirmation policy before execution, then independently queries Binance to verify the resulting order. Every task ends as VERIFIED, BLOCKED, or FROZEN with intent, policy, and evidence hashes. The submission includes one real Binance Spot order, one actual AI-planned live MCP read that safely blocked without confirmation, a credential-free interactive Judge Console, and one-command evidence verification.
+Binance AgentGuard converts a natural-language trading goal into a bounded Binance Spot intent, authorizes only actions inside symbol, market, budget, slippage, and user-confirmation policy, then independently queries Binance to verify the resulting order. Every task ends as VERIFIED, BLOCKED, or FROZEN with intent, policy, and evidence hashes. The submission includes one real Binance Spot order, one actual AI-planned live MCP read that safely paused without confirmation, a credential-free interactive Judge Console, and one-command evidence verification.
 
 ## Problem
 
@@ -18,10 +18,17 @@ Agent tool calls only prove that software returned a response. They do not prove
 that an action was authorized, that the returned order matches the original
 intent, or that an unsafe result cannot continue through a workflow.
 
+## Positioning guardrail
+
+Do not describe the project as “a tool that prevents Agents from placing
+orders.” Describe it as the accountable action layer that grants bounded
+authority, verifies how that authority was exercised, and produces evidence
+that users, teams, or downstream systems can audit.
+
 ## Innovation
 
 - Separates probabilistic AI planning from deterministic authorization.
-- Enforces policy before the Binance tool call.
+- Gives Agents a bounded, auditable way to act before the Binance tool call.
 - Independently queries Binance after execution instead of trusting Agent output.
 - Distinguishes pre-execution `BLOCKED` from post-execution `FROZEN`.
 - Hash-binds intent, policy, result, and verification into a portable receipt.

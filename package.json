@@ -1,6 +1,6 @@
 {
   "name": "binance-agentguard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "description": "A policy-gated Binance Agent OS application with independent verification and receipts.",

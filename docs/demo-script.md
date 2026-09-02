@@ -2,7 +2,7 @@
 
 ## 0:00–0:25 — Problem
 
-“An AI Agent can call a trading tool, but a successful tool call is not proof that the action was allowed or that the result was safe. Binance AgentGuard adds a policy gate before the call and an independent verifier after it.”
+“An AI Agent needs a way to act—not just a way to be stopped. A successful tool call still does not prove that the action was authorized or that the result was safe. Binance AgentGuard is the accountable action layer: it gives the Agent bounded authority before the call and independently verifies reality after it.”
 
 ## 0:25–0:55 — Binance policy
 
@@ -20,7 +20,7 @@ Click **VERIFIED example** in the Judge Console. Point to `GOAL → QUOTE → IN
 
 Click **BLOCKED example**.
 
-“This asks for 25 USDT against a 5 USDT per-action limit. AgentGuard blocks it before the Binance gateway is called. There is no order ID.”
+“This asks for 25 USDT against a 5 USDT per-action limit. AgentGuard declines to grant authority for this action before the Binance gateway is called. There is no order ID.”
 
 ## 1:55–2:25 — FROZEN
 
@@ -36,4 +36,4 @@ Open the **REAL EXECUTION** evidence link and show order `12512896470`, then sho
 
 Close with:
 
-“Binance AgentGuard is the control plane between an Agent’s intent and Binance execution: allowed before the call, verified after execution, and frozen on bad output.”
+“Binance AgentGuard is the accountable control plane between an Agent’s intent and Binance execution: the Agent can act inside explicit boundaries, every result is verified, and bad output is frozen.”

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title description">
   <title id="title">Binance AgentGuard</title>
-  <desc id="description">Policy-gated Binance AI Agent execution with verified, blocked, and frozen outcomes.</desc>
+  <desc id="description">An accountable action layer for Binance AI Agents with bounded authority, independent verification, and verified, blocked, and frozen outcomes.</desc>
   <defs>
     <radialGradient id="background" cx="0" cy="0" r="1" gradientTransform="translate(190 20) rotate(27) scale(850 580)" gradientUnits="userSpaceOnUse">
       <stop stop-color="#17345e"/>
@@ -26,31 +26,31 @@
   </g>
 
   <text x="72" y="225" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="68" font-weight="800" letter-spacing="-3">Agents can act.</text>
-  <text x="72" y="300" fill="url(#accent)" font-family="ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="68" font-weight="800" letter-spacing="-3">Guardrails decide.</text>
-  <text x="74" y="354" fill="#b4c0d2" font-family="ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="23">Policy gate → Binance Spot → independent verification → receipt + hash</text>
+  <text x="72" y="300" fill="url(#accent)" font-family="ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="68" font-weight="800" letter-spacing="-3">Authority stays bounded.</text>
+  <text x="74" y="354" fill="#b4c0d2" font-family="ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="23">Agent intent → policy authority → Binance Spot → verification → receipt</text>
 
   <g transform="translate(72 406)" filter="url(#shadow)">
     <rect width="350" height="122" rx="20" fill="#111827" stroke="#263246"/>
     <rect x="24" y="23" width="104" height="30" rx="15" fill="#12382f"/>
     <text x="76" y="44" text-anchor="middle" fill="#35d49a" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="800" letter-spacing="1">VERIFIED</text>
-    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Safe result released</text>
+    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Authority exercised safely</text>
     <text x="24" y="106" fill="#9aa8bd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">Real BNBUSDT order independently checked</text>
   </g>
   <g transform="translate(455 406)" filter="url(#shadow)">
     <rect width="350" height="122" rx="20" fill="#111827" stroke="#263246"/>
     <rect x="24" y="23" width="98" height="30" rx="15" fill="#3c3014"/>
     <text x="73" y="44" text-anchor="middle" fill="#ffc857" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="800" letter-spacing="1">BLOCKED</text>
-    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Stopped pre-trade</text>
-    <text x="24" y="106" fill="#9aa8bd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">Budget or policy violation; no order sent</text>
+    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Authority not granted</text>
+    <text x="24" y="106" fill="#9aa8bd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">Budget or policy violation; no action authorized</text>
   </g>
   <g transform="translate(838 406)" filter="url(#shadow)">
     <rect width="350" height="122" rx="20" fill="#111827" stroke="#263246"/>
     <rect x="24" y="23" width="92" height="30" rx="15" fill="#3d1e28"/>
     <text x="70" y="44" text-anchor="middle" fill="#ff6b7a" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="800" letter-spacing="1">FROZEN</text>
-    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Failed closed</text>
-    <text x="24" y="106" fill="#9aa8bd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">Unsafe execution result isolates the task</text>
+    <text x="24" y="83" fill="#f4f7fb" font-family="ui-sans-serif,system-ui,sans-serif" font-size="22" font-weight="720">Authority revoked</text>
+    <text x="24" y="106" fill="#9aa8bd" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14">Unsafe result isolates the task</text>
   </g>
 
   <text x="72" y="592" fill="#73829a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15">github.com/0xCaptain888/binance-agentguard</text>
-  <text x="1208" y="592" text-anchor="end" fill="#73829a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15">v0.1.1</text>
+  <text x="1208" y="592" text-anchor="end" fill="#73829a" font-family="ui-monospace,SFMono-Regular,Menlo,monospace" font-size="15">v0.3.1</text>
 </svg>

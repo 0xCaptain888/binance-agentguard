@@ -2,9 +2,11 @@
 
 [![CI](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml) [![CodeQL](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/0xCaptain888/binance-agentguard?display_name=tag)](https://github.com/0xCaptain888/binance-agentguard/releases/latest) [![Live Demo](https://img.shields.io/badge/live-demo-35d49a)](https://0xcaptain888.github.io/binance-agentguard/)
 
-![Binance AgentGuard — Agents can act, guardrails decide](assets/social-preview.png)
+![Binance AgentGuard — Agents can act while authority stays bounded](assets/social-preview.svg)
 
-Binance AgentGuard turns a natural-language goal into a bounded Binance Spot intent, blocks policy violations before execution, independently verifies the result, and seals every outcome in a tamper-evident receipt.
+Binance AgentGuard is the control plane that lets an AI Agent act on Binance without giving it unchecked authority: it turns a natural-language goal into a bounded Spot intent, authorizes only policy-compliant actions, independently verifies the result, and seals every outcome in a tamper-evident receipt.
+
+> **Not a kill switch:** AgentGuard grants bounded authority, verifies how that authority was used, and produces evidence another system can audit.
 
 **[Open the public Judge Console](https://0xcaptain888.github.io/binance-agentguard/)** · **[Use the submission kit](docs/submission-kit.md)** · **[Watch the 3-minute script](docs/demo-script.md)** · **[Read the Agent architecture](docs/agent-loop.md)**
 
@@ -28,7 +30,7 @@ Natural-language goal → AI planner → Binance MCP quote
 → VERIFIED / BLOCKED / FROZEN + evidence hash
 ```
 
-The AI planner may propose an intent, but it cannot authorize execution or certify its own output. The deterministic policy engine and independent verifier remain authoritative.
+The AI planner may propose an intent, but it cannot authorize execution or certify its own output. The deterministic policy engine and independent verifier remain authoritative. AgentGuard is not a “stop the bot” switch; it is the accountable action layer between Agent intent and Binance execution.
 
 ## 60-second reproduction
 
