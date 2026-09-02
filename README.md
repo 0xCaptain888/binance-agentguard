@@ -1,5 +1,12 @@
 # Binance AgentGuard
 
+[![CI](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/0xCaptain888/binance-agentguard?display_name=tag)](https://github.com/0xCaptain888/binance-agentguard/releases/latest)
+[![Live Demo](https://img.shields.io/badge/live-demo-35d49a)](https://0xcaptain888.github.io/binance-agentguard/)
+
+![Binance AgentGuard — Agents can act, guardrails decide](assets/social-preview.png)
+
 Policy-gated execution for a Binance AI Agent: the agent can plan and request a Spot action, but AgentGuard only permits actions inside an explicit budget, symbol, market and slippage policy. Every permitted action is independently checked after execution and produces a tamper-evident receipt.
 
 **Live judge demo:** [0xcaptain888.github.io/binance-agentguard](https://0xcaptain888.github.io/binance-agentguard/)
@@ -33,14 +40,18 @@ Requirements: Node.js >= 20.18.
 ```bash
 npm install
 npm run demo
-npm test
-npm run typecheck
-npm run verify:live-evidence
+npm run judge:check
 ```
 
 The simulator is deterministic and does not move funds. It is the reproducible judge path. The live adapter in `src/binance-agentic.ts` is a credential-free protocol boundary: connect it to an authenticated Binance Agent OS/Agentic session only after explicitly authorizing the account and scopes.
 
-The optional `npm run live:run` command wraps that boundary behind the included `scripts/binance-codex-bridge.mjs`, which reuses the local Codex OAuth MCP session without copying credentials. It is read-only by default; see [`docs/live-runner.md`](docs/live-runner.md). Write mode requires two explicit opt-ins and is never needed for the deterministic judge path.
+The optional command below wraps that boundary behind the included `scripts/binance-codex-bridge.mjs`, which reuses the local Codex OAuth MCP session without copying credentials:
+
+```bash
+npm run live:run -- --read-only
+```
+
+It reads the Agentic Spot account and `BNBUSDT` quote but cannot place an order. See [`docs/live-runner.md`](docs/live-runner.md). Write mode requires two explicit opt-ins and is never needed for the deterministic judge path.
 
 ## Binance integration boundary
 
@@ -64,3 +75,8 @@ This is the focused Binance A-track application. The broader control-plane resea
 - The first live trial should use an isolated Agentic sub-account and the smallest amount required by the event.
 - The demo requests Spot data and uses a Spot order only; effective account permissions must be verified in Binance at runtime.
 - Never present simulator receipts as real Binance trades; live receipts must include a Binance order ID and independently queried order status.
+- Review [`SECURITY.md`](SECURITY.md) before adapting the explicit live-write path.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).
