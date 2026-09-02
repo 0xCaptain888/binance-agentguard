@@ -1,9 +1,13 @@
 # One-command live runner
 
 `live:run` runs the AgentGuard policy path against an authenticated Binance MCP
-bridge. The repository never reads an API key or secret. The bridge is a small
-process that translates newline-delimited requests into calls in the approved
-Binance MCP session and returns one JSON response per line:
+bridge. The repository never reads an API key or secret. This repository ships
+`scripts/binance-codex-bridge.mjs`, which delegates each request to the local
+`codex exec` process; Codex reuses the OAuth MCP session already configured on
+the machine. This is a CLI bridge to the local Codex authentication context, not
+an attempt to copy the Codex Desktop session or any OAuth token into the repo.
+The bridge translates newline-delimited requests into calls and returns one JSON
+response per line:
 
 ```json
 {"id":"...","toolName":"spot.ticker24hr","arguments":{"symbol":"BNBUSDT"}}
@@ -15,22 +19,50 @@ catalog names `spot.getAccount`, `spot.ticker24hr`, `spot.newOrder`, and
 `spot.allOrders`; override them with `BINANCE_MCP_*_TOOL` when your MCP catalog
 uses different names.
 
+## Prerequisites
+
+1. Install and authenticate the Codex CLI on the machine that will run the
+   command.
+2. Add the Binance MCP server to that CLI and confirm it is enabled:
+
+   ```bash
+   codex mcp list
+   ```
+
+   The list should contain `binance-mcp-server` with status `enabled`. OAuth is
+   handled by Codex; no Binance key, secret, passphrase, or token belongs in
+   this repository or in shell history.
+
+3. Run the command from the repository root. The first request can take up to
+   90 seconds while Codex starts and the MCP server negotiates.
+
 ## Read-only (default)
 
 ```bash
-BINANCE_MCP_BRIDGE='path/to/your-mcp-bridge' npm run live:run -- --read-only
+BINANCE_MCP_BRIDGE='node scripts/binance-codex-bridge.mjs' npm run live:run -- --read-only
 ```
 
 This reads the Spot account and BNBUSDT quote, then prints the intent and
 policy. No order tool is called.
+
+For a direct bridge smoke test (also read-only):
+
+```bash
+printf '%s\n' '{"id":"smoke","toolName":"spot.ticker24hr","arguments":{"symbol":"BNBUSDT"}}' \
+  | node scripts/binance-codex-bridge.mjs
+```
+
+The output is one JSON line with either `result` or `error`. CLI warnings on
+stderr are intentionally kept separate from this protocol output.
 
 ## Write mode (explicit opt-in)
 
 Write mode is deliberately hard to trigger. It requires both flags below:
 
 ```bash
-BINANCE_MCP_BRIDGE='path/to/your-mcp-bridge' \
+BINANCE_MCP_BRIDGE='node scripts/binance-codex-bridge.mjs' \
 BINANCE_LIVE_WRITE_CONFIRM=I_UNDERSTAND_REAL_BINANCE_WRITE \
+BINANCE_BRIDGE_ALLOW_WRITE=1 \
 npm run live:run -- --write --confirm
 ```
 
