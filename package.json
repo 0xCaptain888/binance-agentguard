@@ -1,16 +1,18 @@
 {
   "name": "binance-agentguard",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "A policy-gated Binance Agent OS application with independent verification and receipts.",
   "engines": { "node": ">=20.18.0" },
   "scripts": {
     "demo": "tsx src/demo.ts",
+    "demo:agent": "tsx src/agent-demo.ts",
+    "agent:live": "tsx src/ai-agent-live.ts",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
     "verify:live-evidence": "tsx src/verify-live-evidence.ts",
-    "judge:check": "npm run typecheck && npm test && npm run verify:live-evidence",
+    "judge:check": "node --check scripts/codex-goal-planner.mjs && node --check site/agent-console.js && npm run typecheck && npm test && npm run demo:agent && npm run verify:live-evidence",
     "live:run": "tsx src/live-runner.ts"
   },
   "devDependencies": {

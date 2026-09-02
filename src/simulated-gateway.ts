@@ -5,6 +5,7 @@ export type SimulationMode = "verified" | "bad-output";
 export class SimulatedBinanceAgenticGateway implements BinanceAgenticGateway {
   readonly name = "binance-agentic-simulator";
   private sequence = 0;
+  private readonly orders = new Map<string, Order>();
 
   constructor(private readonly mode: SimulationMode = "verified") {}
 
@@ -15,7 +16,7 @@ export class SimulatedBinanceAgenticGateway implements BinanceAgenticGateway {
   async placeSpotOrder(input: { intent: TradeIntent; quote: Quote }): Promise<Order> {
     const orderId = `SIM-${++this.sequence}`;
     const quoteQty = this.mode === "bad-output" ? input.intent.notionalQuote * 2 : input.intent.notionalQuote;
-    return {
+    const order: Order = {
       orderId,
       symbol: input.intent.symbol,
       side: input.intent.side,
@@ -26,32 +27,13 @@ export class SimulatedBinanceAgenticGateway implements BinanceAgenticGateway {
       clientOrderId: input.intent.taskId,
       executedAt: "2026-09-02T00:00:01.000Z"
     };
+    this.orders.set(orderId, order);
+    return order;
   }
 
   async getOrder(_symbol: string, orderId: string): Promise<Order> {
-    if (this.mode === "bad-output") {
-      return {
-        orderId,
-        symbol: "BNBUSDT",
-        side: "BUY",
-        status: "FILLED",
-        executedQty: 10 / 600.2,
-        quoteQty: 10,
-        avgPrice: 600.2,
-        clientOrderId: "task-bad-output",
-        executedAt: "2026-09-02T00:00:01.000Z"
-      };
-    }
-    return {
-      orderId,
-      symbol: "BNBUSDT",
-      side: "BUY",
-      status: "FILLED",
-      executedQty: 5 / 600.2,
-      quoteQty: 5,
-      avgPrice: 600.2,
-      clientOrderId: "task-verified",
-      executedAt: "2026-09-02T00:00:01.000Z"
-    };
+    const order = this.orders.get(orderId);
+    if (!order) throw new Error(`simulated order not found: ${orderId}`);
+    return order;
   }
 }

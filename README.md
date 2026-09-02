@@ -7,14 +7,18 @@
 
 ![Binance AgentGuard — Agents can act, guardrails decide](assets/social-preview.png)
 
-Policy-gated execution for a Binance AI Agent: the agent can plan and request a Spot action, but AgentGuard only permits actions inside an explicit budget, symbol, market and slippage policy. Every permitted action is independently checked after execution and produces a tamper-evident receipt.
+Policy-gated execution for a Binance AI Agent: the agent converts a natural-language goal into a Spot intent, but AgentGuard only permits actions inside an explicit budget, symbol, market and slippage policy. Every permitted action is independently checked after execution and produces a tamper-evident receipt.
 
 **Live judge demo:** [0xcaptain888.github.io/binance-agentguard](https://0xcaptain888.github.io/binance-agentguard/)
 
 ## The judge path
 
 ```text
-Binance Agent OS / Agentic MCP
+Natural-language user goal
+        ↓
+AI Agent planner
+        ↓
+Binance Agent OS / Agentic MCP quote
         ↓
 Binance AgentGuard policy gate
         ↓
@@ -33,13 +37,29 @@ The demo uses one bounded scenario: a BNBUSDT Spot action with a 5 USDT per-acti
 - `BLOCKED`: the request exceeds policy, so no order is submitted.
 - `FROZEN`: execution returns an unsafe result, so the AgentGuard circuit breaker freezes the task.
 
+The Agent path is also available as a deterministic CLI demonstration:
+
+```bash
+npm run demo:agent
+```
+
+It turns natural-language goals into structured intents, observes a quote,
+applies the same policy core, and emits the same receipt states. The public
+Judge Console mirrors this flow in the browser without credentials.
+
+The key separation is deliberate: the AI planner may propose an intent, but it
+cannot authorize execution or certify its own output. The deterministic policy
+engine and independent verifier remain authoritative. See
+[`docs/agent-loop.md`](docs/agent-loop.md) for the architecture and trust
+boundaries.
+
 ## Run in under five minutes
 
 Requirements: Node.js >= 20.18.
 
 ```bash
 npm install
-npm run demo
+npm run demo:agent
 npm run judge:check
 ```
 
@@ -52,6 +72,17 @@ npm run live:run -- --read-only
 ```
 
 It reads the Agentic Spot account and `BNBUSDT` quote but cannot place an order. See [`docs/live-runner.md`](docs/live-runner.md). Write mode requires two explicit opt-ins and is never needed for the deterministic judge path.
+
+If the judge already has Codex CLI and Binance MCP authenticated locally, the
+optional command below uses an actual model for goal planning and then runs the
+same read-only fail-closed path:
+
+```bash
+npm run agent:live
+```
+
+It must end `BLOCKED` with `user_confirmation_required`; it does not submit an
+order.
 
 ## Binance integration boundary
 

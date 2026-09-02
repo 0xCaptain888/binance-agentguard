@@ -46,8 +46,26 @@ The runner automatically selects `node scripts/binance-codex-bridge.mjs` from
 the repository. Set `BINANCE_MCP_BRIDGE` only when replacing it with another
 authenticated bridge.
 
-This reads the Spot account and BNBUSDT quote, then prints the intent and
-policy. No order tool is called.
+This reads the Spot account and BNBUSDT quote, then prints the Agent plan,
+trace, intent and policy. Read-only mode intentionally omits confirmation, so
+the final receipt is `BLOCKED` and no order tool is called. Override the goal
+without changing the policy boundary:
+
+```bash
+BINANCE_AGENT_GOAL='Buy 25 USDT of BNB.' npm run live:run -- --read-only
+```
+
+Use an actual Codex model as the planning brain while retaining the same
+deterministic authorization boundary:
+
+```bash
+npm run agent:live
+```
+
+The model can only produce a plan. Runtime validation binds the task identity
+and asset fields, and the external policy engine makes the authorization
+decision. The command remains read-only and ends `BLOCKED` because it does not
+provide transaction confirmation.
 
 For a direct bridge smoke test (also read-only):
 
@@ -73,6 +91,10 @@ It submits one bounded `BNBUSDT` market BUY with a `5 USDT` quote amount,
 queries the order independently, and prints the resulting AgentGuard receipt.
 Do not use this command unless you have explicitly accepted a real Binance
 trade and verified the account and balance in Binance first.
+
+The write path uses the same natural-language planner. `BINANCE_AGENT_GOAL` is
+still constrained by the hard-coded live policy (BNBUSDT Spot, 5 USDT per day,
+50 bps slippage), and the policy gate runs before the order tool.
 
 The deterministic judge path remains the safer reproducible demo:
 

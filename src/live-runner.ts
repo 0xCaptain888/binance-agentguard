@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { randomUUID } from "node:crypto";
-import { runAgentTask, type BinanceAgenticGateway, type Order, type Quote, type TradeIntent, type TradingPolicy } from "./core.js";
+import { type BinanceAgenticGateway, type Order, type Quote, type TradingPolicy } from "./core.js";
+import { runNaturalLanguageTask, type AgentPlan, type GoalPlanner } from "./agent.js";
 
 /**
  * Small bridge protocol for running the same guard against Binance MCP.
@@ -10,6 +11,39 @@ import { runAgentTask, type BinanceAgenticGateway, type Order, type Quote, type 
  * response per line on stdout.
  */
 type Bridge = { call<T>(toolName: string, args: Record<string, unknown>): Promise<T>; close(): void };
+
+function plannerFromCommand(command: string, policy: TradingPolicy): GoalPlanner {
+  return (goal, taskId) => new Promise<AgentPlan>((resolve, reject) => {
+    const child = spawn(command, { shell: true, stdio: ["pipe", "pipe", "inherit"] });
+    let output = "";
+    let settled = false;
+    const timeoutMs = Number(process.env.BINANCE_AGENT_PLANNER_COMMAND_TIMEOUT_MS ?? 120000);
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGTERM");
+      reject(new Error(`Agent planner timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => { output += chunk.toString(); });
+    child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code !== 0) return reject(new Error(`Agent planner exited with ${code}`));
+      const line = output.trim().split(/\r?\n/).at(-1);
+      if (!line) return reject(new Error("Agent planner returned no output"));
+      try { resolve(JSON.parse(line) as AgentPlan); }
+      catch (error) { reject(error instanceof Error ? error : new Error(String(error))); }
+    });
+    child.stdin.end(JSON.stringify({ goal, taskId, policy }));
+  });
+}
 
 function bridgeFromCommand(command: string): Bridge {
   const child = spawn(command, { shell: true, stdio: ["pipe", "pipe", "inherit"] });
@@ -97,16 +131,27 @@ const bridgeCommand = process.env.BINANCE_MCP_BRIDGE ?? "node scripts/binance-co
 const bridge = bridgeFromCommand(bridgeCommand);
 const tools = { quote: process.env.BINANCE_MCP_QUOTE_TOOL ?? "spot.ticker24hr", place: process.env.BINANCE_MCP_ORDER_TOOL ?? "spot.newOrder", order: process.env.BINANCE_MCP_VERIFY_TOOL ?? "spot.allOrders" };
 const policy: TradingPolicy = { id: "binance-live-policy", version: "1.0.0", allowedMarkets: ["SPOT"], allowedSymbols: ["BNBUSDT"], maxNotionalQuote: 5, maxDailyNotionalQuote: 5, maxSlippageBps: 50, requireUserConfirmation: true };
-const intent: TradeIntent = { taskId: `agentguard-live-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`, actor: "binance-agentguard-live-runner", symbol: "BNBUSDT", side: "BUY", quoteAsset: "USDT", baseAsset: "BNB", notionalQuote: 5, maxSlippageBps: 50, purpose: "bounded Binance Agentic Spot test" };
+const goal = process.env.BINANCE_AGENT_GOAL ?? "Buy 5 USDT of BNB only if the current market and policy allow it.";
+const taskId = `agentguard-live-${new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}`;
+const planner = process.env.BINANCE_AGENT_PLANNER === "codex"
+  ? plannerFromCommand(process.env.BINANCE_AGENT_PLANNER_CMD ?? "node scripts/codex-goal-planner.mjs", policy)
+  : undefined;
 
 try {
+  if (!readOnly && !confirmed) throw new Error("Write mode requires --confirm and BINANCE_LIVE_WRITE_CONFIRM=I_UNDERSTAND_REAL_BINANCE_WRITE");
   const account = await bridge.call("spot.getAccount", { omitZeroBalances: true });
-  const quote = await bridge.call(tools.quote, { symbol: intent.symbol });
-  console.log(JSON.stringify({ mode: readOnly ? "read-only" : "write", account: unwrap(account), quote: unwrap(quote), intent, policy }, null, 2));
+  const agent = await runNaturalLanguageTask({
+    goal,
+    taskId,
+    policy,
+    gateway: gateway(bridge, tools),
+    // Read-only mode deliberately omits confirmation, so the guard returns a
+    // BLOCKED receipt after planning and quote observation without an order.
+    userConfirmed: !readOnly,
+    planner
+  });
+  console.log(JSON.stringify({ mode: readOnly ? "read-only" : "write", account: unwrap(account), plan: agent.plan, trace: agent.trace, state: agent.result.state, receipt: agent.result.receipt }, null, 2));
   if (readOnly) process.exit(0);
-  if (!confirmed) throw new Error("Write mode requires --confirm and BINANCE_LIVE_WRITE_CONFIRM=I_UNDERSTAND_REAL_BINANCE_WRITE");
-  const result = await runAgentTask({ intent, policy, gateway: gateway(bridge, tools), userConfirmed: true });
-  console.log(JSON.stringify(result, null, 2));
 } finally {
   bridge.close();
 }

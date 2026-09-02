@@ -25,10 +25,17 @@ Show the policy card:
 
 ## 0:55–1:35 — VERIFIED
 
-Run:
+In the public Judge Console, click **VERIFIED example** first. Point to the
+Agent trace:
+
+```text
+GOAL → QUOTE → INTENT → POLICY → EXECUTION → VERIFY → RECEIPT
+```
+
+Then run the CLI equivalent:
 
 ```bash
-npm run demo
+npm run demo:agent
 ```
 
 Pause on the first receipt. Point to the quote, filled order, four verifier
@@ -39,7 +46,7 @@ verification result.”
 
 ## 1:35–2:05 — BLOCKED
 
-Pause on the second receipt.
+Click **BLOCKED example** and pause on the receipt.
 
 “This request asks for 25 USDT against a 5 USDT limit. AgentGuard rejects it
 before the Binance gateway is called. There is no order ID because no order
@@ -47,7 +54,7 @@ was submitted.”
 
 ## 2:05–2:35 — FROZEN
 
-Pause on the third receipt.
+Click **FROZEN example** and pause on the receipt.
 
 “The gateway returned a filled order, but the observed notional is 10 USDT,
 outside the policy. The independent verifier fails closed and the task enters
