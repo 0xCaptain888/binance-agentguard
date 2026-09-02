@@ -40,6 +40,8 @@ npm run verify:live-evidence
 
 The simulator is deterministic and does not move funds. It is the reproducible judge path. The live adapter in `src/binance-agentic.ts` is a credential-free protocol boundary: connect it to an authenticated Binance Agent OS/Agentic session only after explicitly authorizing the account and scopes.
 
+The optional `npm run live:run` command wraps that boundary behind an injected MCP bridge. It is read-only by default; see [`docs/live-runner.md`](docs/live-runner.md). Write mode requires two explicit opt-ins and is never needed for the deterministic judge path.
+
 ## Binance integration boundary
 
 Binance's public Agent Native documentation describes the Agentic MCP endpoint and an isolated Agentic sub-account. The live transport is intentionally injected rather than storing API keys in this repository. Effective account permissions must still be checked in Binance before any live write; this repository does not grant or store withdrawal credentials. See [`docs/binance-agent-os.md`](docs/binance-agent-os.md).

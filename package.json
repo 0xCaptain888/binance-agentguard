@@ -9,7 +9,8 @@
     "demo": "tsx src/demo.ts",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "verify:live-evidence": "tsx src/verify-live-evidence.ts"
+    "verify:live-evidence": "tsx src/verify-live-evidence.ts",
+    "live:run": "tsx src/live-runner.ts"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",
