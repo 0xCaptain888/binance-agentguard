@@ -33,10 +33,15 @@ const requiredScript = [
   "verifyLiveEvidence",
   "crypto.subtle"
 ];
+const requiredLinks = [
+  "https://github.com/0xCaptain888/binance-agentguard",
+  "https://x.com/0xCaptain888"
+];
 const missing = [
   ...requiredHtml.filter((value) => !html.includes(value)),
-  ...requiredScript.filter((value) => !script.includes(value))
+  ...requiredScript.filter((value) => !script.includes(value)),
+  ...requiredLinks.filter((value) => !html.includes(value))
 ];
 
 if (missing.length) throw new Error(`Judge site is missing: ${missing.join(", ")}`);
-console.log(JSON.stringify({ valid: true, requiredSignals: requiredHtml.length + requiredScript.length }, null, 2));
+console.log(JSON.stringify({ valid: true, requiredSignals: requiredHtml.length + requiredScript.length + requiredLinks.length }, null, 2));
