@@ -39,8 +39,12 @@ uses different names.
 ## Read-only (default)
 
 ```bash
-BINANCE_MCP_BRIDGE='node scripts/binance-codex-bridge.mjs' npm run live:run -- --read-only
+npm run live:run -- --read-only
 ```
+
+The runner automatically selects `node scripts/binance-codex-bridge.mjs` from
+the repository. Set `BINANCE_MCP_BRIDGE` only when replacing it with another
+authenticated bridge.
 
 This reads the Spot account and BNBUSDT quote, then prints the intent and
 policy. No order tool is called.
@@ -60,7 +64,6 @@ stderr are intentionally kept separate from this protocol output.
 Write mode is deliberately hard to trigger. It requires both flags below:
 
 ```bash
-BINANCE_MCP_BRIDGE='node scripts/binance-codex-bridge.mjs' \
 BINANCE_LIVE_WRITE_CONFIRM=I_UNDERSTAND_REAL_BINANCE_WRITE \
 BINANCE_BRIDGE_ALLOW_WRITE=1 \
 npm run live:run -- --write --confirm

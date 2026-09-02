@@ -89,12 +89,10 @@ function gateway(bridge: Bridge, tools: { quote: string; place: string; order: s
 const args = new Set(process.argv.slice(2));
 const readOnly = args.has("--read-only") || !args.has("--write");
 const confirmed = args.has("--confirm") && process.env.BINANCE_LIVE_WRITE_CONFIRM === "I_UNDERSTAND_REAL_BINANCE_WRITE";
-const bridgeCommand = process.env.BINANCE_MCP_BRIDGE;
-if (!bridgeCommand) {
-  console.error("Set BINANCE_MCP_BRIDGE to an authenticated Binance MCP bridge command. No credentials are read by this runner.");
-  console.error("Read-only example: BINANCE_MCP_BRIDGE='your-bridge-command' npm run live:run -- --read-only");
-  process.exit(2);
-}
+// Use the repository-provided Codex bridge by default.  Deployments can still
+// inject a different bridge through BINANCE_MCP_BRIDGE; credentials never enter
+// this process or the repository.
+const bridgeCommand = process.env.BINANCE_MCP_BRIDGE ?? "node scripts/binance-codex-bridge.mjs";
 
 const bridge = bridgeFromCommand(bridgeCommand);
 const tools = { quote: process.env.BINANCE_MCP_QUOTE_TOOL ?? "spot.ticker24hr", place: process.env.BINANCE_MCP_ORDER_TOOL ?? "spot.newOrder", order: process.env.BINANCE_MCP_VERIFY_TOOL ?? "spot.allOrders" };
