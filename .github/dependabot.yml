@@ -8,6 +8,11 @@ updates:
       time: "03:00"
       timezone: Asia/Shanghai
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
