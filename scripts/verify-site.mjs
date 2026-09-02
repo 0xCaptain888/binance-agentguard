@@ -13,11 +13,26 @@ const requiredHtml = [
   "VERIFIED example",
   "BLOCKED example",
   "FROZEN example",
+  "Adjustable policy",
+  "Independent verification matrix",
+  "Verify real evidence",
+  "Verify receipt hash",
+  "policy-symbol",
+  "verification-matrix",
   "12512896470",
   "2026-09-02-ai-live-readonly-001.json",
   "agent-console.js"
 ];
-const requiredScript = ["notionalWithinPolicy", "evidenceHash", "runGoal", "crypto.subtle"];
+const requiredScript = [
+  "notionalWithinPolicy",
+  "evidenceHash",
+  "runGoal",
+  "readPolicy",
+  "renderMatrix",
+  "verifyReceipt",
+  "verifyLiveEvidence",
+  "crypto.subtle"
+];
 const missing = [
   ...requiredHtml.filter((value) => !html.includes(value)),
   ...requiredScript.filter((value) => !script.includes(value))

@@ -44,6 +44,13 @@ The simulator never moves funds. `judge:check` validates the TypeScript, nine po
 
 The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.
 
+The Judge Console also includes an adjustable policy sandbox: judges can change
+the allowed symbol, per-action/daily budget, prior spend, slippage limit, and
+confirmation flag, then inspect a live verification matrix showing expected,
+observed, and PASS/FAIL/N/A for each control. Receipt hashes and the public
+Binance evidence bundle can be recomputed in-browser with Web Crypto; no
+credentials or account connection are required.
+
 ## Evidence layers
 
 1. **Real execution:** one previously authorized Binance Spot BNBUSDT market BUY, order `12512896470`, FILLED for `0.007 BNB / 4.81047 USDT`, independently queried and hash-bound. [Open evidence](evidence/public/2026-09-02-bnbusdt-buy-001.json)

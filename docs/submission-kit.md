@@ -54,6 +54,12 @@ and usage-based infrastructure pricing.
 - Real AI planner + Binance MCP quote: `BLOCKED` with
   `user_confirmation_required`; no order submitted.
 - Reproducible judge path: `VERIFIED`, `BLOCKED`, and `FROZEN`.
+- Adjustable judge policy: symbol, action/daily budget, prior spend, slippage,
+  and confirmation can be changed without credentials or a live account.
+- Visual verification matrix: every run exposes expected, observed, and
+  PASS/FAIL/N/A for policy and post-execution checks.
+- Browser-native integrity proof: the current receipt and real Binance evidence
+  hash can be independently recomputed with Web Crypto.
 - Automated verification: 9 tests, CI, CodeQL, and credential-free evidence
   hash recomputation.
 
