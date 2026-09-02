@@ -1,0 +1,47 @@
+{
+  "evidenceVersion": "1",
+  "source": "Binance MCP Server",
+  "network": "Binance Spot",
+  "account": {
+    "uid": "1273130271",
+    "accountType": "SPOT",
+    "note": "UID is included for reproducibility; no credentials are stored."
+  },
+  "intent": {
+    "taskId": "agentguard-live-20260902-001",
+    "symbol": "BNBUSDT",
+    "side": "BUY",
+    "type": "MARKET",
+    "quoteOrderQty": "5.00000000"
+  },
+  "marketSnapshot": {
+    "lastPrice": "687.40000000",
+    "bidPrice": "687.39000000",
+    "askPrice": "687.40000000"
+  },
+  "order": {
+    "orderId": "12512896470",
+    "clientOrderId": "agentguard-live-20260902-001",
+    "status": "FILLED",
+    "origQty": "0.00700000",
+    "executedQty": "0.00700000",
+    "origQuoteOrderQty": "5.00000000",
+    "cummulativeQuoteQty": "4.81047000",
+    "avgFillPrice": "687.21000000",
+    "commission": "0.00000525",
+    "commissionAsset": "BNB",
+    "tradeId": "1574253184",
+    "transactTime": 1788321420936
+  },
+  "independentVerification": {
+    "agentGuardState": "VERIFIED",
+    "query": "spot.allOrders(symbol=BNBUSDT, orderId=12512896470)",
+    "tradeQuery": "spot.myTrades(symbol=BNBUSDT, orderId=12512896470)",
+    "orderFilled": true,
+    "identityBound": true,
+    "notionalWithinPolicy": true,
+    "slippageWithinPolicy": true,
+    "slippageBpsVsAsk": 2.76
+  },
+  "evidenceHash": "c7672b8d19efd5a1cb58be151e6e9ad03762d9c9346776eeff6c7d7ecd7fe4e3"
+}

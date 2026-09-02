@@ -45,6 +45,10 @@ Binance's public Agent Native documentation describes the Agentic MCP endpoint a
 
 Each run hashes the intent, policy, quote, order and verification result into `evidenceHash`. A receipt records the state, policy hash and all verification checks. `FROZEN` is an AgentGuard safety state: it disables further actions for the task; it does not claim that Binance itself freezes an account.
 
+### Real Binance Spot evidence
+
+The repository includes one redacted live test receipt: [`evidence/public/2026-09-02-bnbusdt-buy-001.json`](evidence/public/2026-09-02-bnbusdt-buy-001.json). It records a `5 USDT` BNBUSDT market buy submitted through Binance MCP, independently verified with `spot.allOrders` and `spot.myTrades`, and includes the reproducible evidence hash. Binance Spot order IDs are authenticated exchange records rather than public blockchain transaction hashes.
+
 ## Relationship to the original project
 
 This is the focused Binance A-track application. The broader control-plane research remains in [`0xCaptain888/agent-control-plane`](https://github.com/0xCaptain888/agent-control-plane); it is not required to run this judge path.
