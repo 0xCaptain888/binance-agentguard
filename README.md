@@ -33,13 +33,14 @@ npm install
 npm run demo
 npm test
 npm run typecheck
+npm run verify:live-evidence
 ```
 
 The simulator is deterministic and does not move funds. It is the reproducible judge path. The live adapter in `src/binance-agentic.ts` is a credential-free protocol boundary: connect it to an authenticated Binance Agent OS/Agentic session only after explicitly authorizing the account and scopes.
 
 ## Binance integration boundary
 
-Binance's public Agent Native documentation describes the Agentic MCP endpoint and an isolated Agentic sub-account with no withdrawal scope. The live transport is intentionally injected rather than storing API keys in this repository. See [`docs/binance-agent-os.md`](docs/binance-agent-os.md).
+Binance's public Agent Native documentation describes the Agentic MCP endpoint and an isolated Agentic sub-account. The live transport is intentionally injected rather than storing API keys in this repository. Effective account permissions must still be checked in Binance before any live write; this repository does not grant or store withdrawal credentials. See [`docs/binance-agent-os.md`](docs/binance-agent-os.md).
 
 ## Evidence model
 
@@ -47,7 +48,7 @@ Each run hashes the intent, policy, quote, order and verification result into `e
 
 ### Real Binance Spot evidence
 
-The repository includes one redacted live test receipt: [`evidence/public/2026-09-02-bnbusdt-buy-001.json`](evidence/public/2026-09-02-bnbusdt-buy-001.json). It records a `5 USDT` BNBUSDT market buy submitted through Binance MCP, independently verified with `spot.allOrders` and `spot.myTrades`, and includes the reproducible evidence hash. Binance Spot order IDs are authenticated exchange records rather than public blockchain transaction hashes.
+The repository includes one redacted live test receipt: [`evidence/public/2026-09-02-bnbusdt-buy-001.json`](evidence/public/2026-09-02-bnbusdt-buy-001.json). It records a `5 USDT` BNBUSDT market buy submitted through Binance MCP, independently verified with `spot.allOrders` and `spot.myTrades`, and includes the reproducible evidence hash. Run `npm run verify:live-evidence` to recompute the hash and validate the required fields. Binance Spot order IDs are authenticated exchange records rather than public blockchain transaction hashes.
 
 ## Relationship to the original project
 
@@ -57,5 +58,5 @@ This is the focused Binance A-track application. The broader control-plane resea
 
 - No credentials, private keys or API keys are committed.
 - The first live trial should use an isolated Agentic sub-account and the smallest amount required by the event.
-- Spot-only and no-withdrawal permissions are intentional defense in depth.
+- The demo requests Spot data and uses a Spot order only; effective account permissions must be verified in Binance at runtime.
 - Never present simulator receipts as real Binance trades; live receipts must include a Binance order ID and independently queried order status.

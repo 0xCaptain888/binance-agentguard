@@ -41,7 +41,8 @@
     "identityBound": true,
     "notionalWithinPolicy": true,
     "slippageWithinPolicy": true,
+    "independentQuery": true,
     "slippageBpsVsAsk": 2.76
   },
-  "evidenceHash": "c7672b8d19efd5a1cb58be151e6e9ad03762d9c9346776eeff6c7d7ecd7fe4e3"
+  "evidenceHash": "039b9c5c006b66ecd2c243990cb8b453c2d52c6e3b9c01b199fb890ee03b07f3"
 }

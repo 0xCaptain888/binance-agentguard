@@ -8,7 +8,8 @@
   "scripts": {
     "demo": "tsx src/demo.ts",
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:live-evidence": "tsx src/verify-live-evidence.ts"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",
