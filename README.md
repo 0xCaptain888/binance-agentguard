@@ -1,61 +1,36 @@
 # Binance AgentGuard
 
-[![CI](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml)
-[![CodeQL](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/0xCaptain888/binance-agentguard?display_name=tag)](https://github.com/0xCaptain888/binance-agentguard/releases/latest)
-[![Live Demo](https://img.shields.io/badge/live-demo-35d49a)](https://0xcaptain888.github.io/binance-agentguard/)
+[![CI](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml) [![CodeQL](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/0xCaptain888/binance-agentguard?display_name=tag)](https://github.com/0xCaptain888/binance-agentguard/releases/latest) [![Live Demo](https://img.shields.io/badge/live-demo-35d49a)](https://0xcaptain888.github.io/binance-agentguard/)
 
 ![Binance AgentGuard — Agents can act, guardrails decide](assets/social-preview.png)
 
-Policy-gated execution for a Binance AI Agent: the agent converts a natural-language goal into a Spot intent, but AgentGuard only permits actions inside an explicit budget, symbol, market and slippage policy. Every permitted action is independently checked after execution and produces a tamper-evident receipt.
+Binance AgentGuard turns a natural-language goal into a bounded Binance Spot intent, blocks policy violations before execution, independently verifies the result, and seals every outcome in a tamper-evident receipt.
 
-**Live judge demo:** [0xcaptain888.github.io/binance-agentguard](https://0xcaptain888.github.io/binance-agentguard/)
+**[Open the public Judge Console](https://0xcaptain888.github.io/binance-agentguard/)** · **[Watch the 3-minute script](docs/demo-script.md)** · **[Read the Agent architecture](docs/agent-loop.md)**
+
+## Why this is Binance-specific
+
+The project is built around Binance Agent OS/Agentic MCP, not a generic exchange adapter:
+
+- the Agent operates through an isolated Agentic account context;
+- Binance MCP provides the authenticated market-data and Spot tool surface;
+- AgentGuard applies organization-level policy before the tool call;
+- Binance order/trade records are queried independently after execution.
+
+The commercial wedge is accountable Agent execution: teams can let Agents operate on Binance while retaining budgets, approved markets, human confirmation, incident isolation, and audit-ready receipts.
 
 ## The judge path
 
 ```text
-Natural-language user goal
-        ↓
-AI Agent planner
-        ↓
-Binance Agent OS / Agentic MCP quote
-        ↓
-Binance AgentGuard policy gate
-        ↓
-user confirmation
-        ↓
-Binance Spot execution
-        ↓
-independent order verification
-        ↓
-VERIFIED / BLOCKED / FROZEN + evidence hash
+Natural-language goal → AI planner → Binance MCP quote
+→ deterministic policy gate → user confirmation
+→ Binance Spot → independent verifier
+→ VERIFIED / BLOCKED / FROZEN + evidence hash
 ```
 
-The demo uses one bounded scenario: a BNBUSDT Spot action with a 5 USDT per-action limit and 50 bps maximum slippage. It intentionally shows all three outcomes:
+The AI planner may propose an intent, but it cannot authorize execution or certify its own output. The deterministic policy engine and independent verifier remain authoritative.
 
-- `VERIFIED`: the order is filled and every post-execution check passes.
-- `BLOCKED`: the request exceeds policy, so no order is submitted.
-- `FROZEN`: execution returns an unsafe result, so the AgentGuard circuit breaker freezes the task.
-
-The Agent path is also available as a deterministic CLI demonstration:
-
-```bash
-npm run demo:agent
-```
-
-It turns natural-language goals into structured intents, observes a quote,
-applies the same policy core, and emits the same receipt states. The public
-Judge Console mirrors this flow in the browser without credentials.
-
-The key separation is deliberate: the AI planner may propose an intent, but it
-cannot authorize execution or certify its own output. The deterministic policy
-engine and independent verifier remain authoritative. See
-[`docs/agent-loop.md`](docs/agent-loop.md) for the architecture and trust
-boundaries.
-
-## Run in under five minutes
-
-Requirements: Node.js >= 20.18.
+## 60-second reproduction
 
 ```bash
 npm install
@@ -63,50 +38,34 @@ npm run demo:agent
 npm run judge:check
 ```
 
-The simulator is deterministic and does not move funds. It is the reproducible judge path. The live adapter in `src/binance-agentic.ts` is a credential-free protocol boundary: connect it to an authenticated Binance Agent OS/Agentic session only after explicitly authorizing the account and scopes.
+The simulator never moves funds. `judge:check` validates the TypeScript, nine policy/verification tests, three Agent states, both public evidence bundles, and required Judge Console signals.
 
-The optional command below wraps that boundary behind the included `scripts/binance-codex-bridge.mjs`, which reuses the local Codex OAuth MCP session without copying credentials:
+The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.
+
+## Evidence layers
+
+1. **Real execution:** one previously authorized Binance Spot BNBUSDT market BUY, order `12512896470`, FILLED for `0.007 BNB / 4.81047 USDT`, independently queried and hash-bound. [Open evidence](evidence/public/2026-09-02-bnbusdt-buy-001.json)
+2. **Live read-only Agent:** an actual Codex planner generated an intent and observed a live Binance MCP quote; AgentGuard returned `BLOCKED` because confirmation was absent. [Open evidence](evidence/public/2026-09-02-ai-live-readonly-001.json)
+3. **Reproducible simulation:** the public console and `npm run demo:agent` show `VERIFIED`, `BLOCKED`, and `FROZEN` deterministically.
+
+Binance Spot order IDs are authenticated exchange records, not public blockchain transaction hashes. Run `npm run verify:live-evidence` and `npm run verify:ai-live-evidence` to recompute the evidence hashes without credentials.
+
+## Optional live read
 
 ```bash
 npm run live:run -- --read-only
-```
-
-It reads the Agentic Spot account and `BNBUSDT` quote but cannot place an order. See [`docs/live-runner.md`](docs/live-runner.md). Write mode requires two explicit opt-ins and is never needed for the deterministic judge path.
-
-If the judge already has Codex CLI and Binance MCP authenticated locally, the
-optional command below uses an actual model for goal planning and then runs the
-same read-only fail-closed path:
-
-```bash
 npm run agent:live
 ```
 
-It must end `BLOCKED` with `user_confirmation_required`; it does not submit an
-order.
+Both paths read Binance data only and fail closed without explicit confirmation. Credentials stay inside the local authenticated MCP session and are never stored in this repository. Live write mode requires two separate explicit opt-ins and is not needed for judging.
 
-## Binance integration boundary
+## Security and scope
 
-Binance's public Agent Native documentation describes the Agentic MCP endpoint and an isolated Agentic sub-account. The live transport is intentionally injected rather than storing API keys in this repository. Effective account permissions must still be checked in Binance before any live write; this repository does not grant or store withdrawal credentials. See [`docs/binance-agent-os.md`](docs/binance-agent-os.md).
-
-## Evidence model
-
-Each run hashes the intent, policy, quote, order and verification result into `evidenceHash`. A receipt records the state, policy hash and all verification checks. `FROZEN` is an AgentGuard safety state: it disables further actions for the task; it does not claim that Binance itself freezes an account.
-
-### Real Binance Spot evidence
-
-The repository includes one redacted live test receipt: [`evidence/public/2026-09-02-bnbusdt-buy-001.json`](evidence/public/2026-09-02-bnbusdt-buy-001.json). It records a `5 USDT` BNBUSDT market buy submitted through Binance MCP, independently verified with `spot.allOrders` and `spot.myTrades`, and includes the reproducible evidence hash. Run `npm run verify:live-evidence` to recompute the hash and validate the required fields. Binance Spot order IDs are authenticated exchange records rather than public blockchain transaction hashes.
+This is a hackathon reference implementation, not audited production trading software. No credentials, private keys, or API keys are committed. See [`SECURITY.md`](SECURITY.md), [`docs/live-runner.md`](docs/live-runner.md), and [`docs/binance-agent-os.md`](docs/binance-agent-os.md).
 
 ## Relationship to the original project
 
-This is the focused Binance A-track application. The broader control-plane research remains in [`0xCaptain888/agent-control-plane`](https://github.com/0xCaptain888/agent-control-plane); it is not required to run this judge path.
-
-## Security notes
-
-- No credentials, private keys or API keys are committed.
-- The first live trial should use an isolated Agentic sub-account and the smallest amount required by the event.
-- The demo requests Spot data and uses a Spot order only; effective account permissions must be verified in Binance at runtime.
-- Never present simulator receipts as real Binance trades; live receipts must include a Binance order ID and independently queried order status.
-- Review [`SECURITY.md`](SECURITY.md) before adapting the explicit live-write path.
+This is the focused Binance A-track application. The broader control-plane research remains in [`0xCaptain888/agent-control-plane`](https://github.com/0xCaptain888/agent-control-plane) and is not required to run this submission.
 
 ## License
 

@@ -80,3 +80,4 @@ document.querySelectorAll("[data-goal]").forEach((button) => button.addEventList
   runGoal(button.dataset.goal);
 }));
 document.querySelector("#run-agent").addEventListener("click", () => runGoal(document.querySelector("#agent-goal").value));
+runGoal(document.querySelector("#agent-goal").value);

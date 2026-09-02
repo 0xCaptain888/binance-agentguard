@@ -1,0 +1,74 @@
+{
+  "evidenceVersion": "1",
+  "evidenceType": "LIVE_READ_ONLY_AGENT",
+  "source": "Codex AI planner + Binance MCP Server",
+  "recordedAt": "2026-09-02T06:31:27.123Z",
+  "claim": "A model-generated BNBUSDT intent observed live Binance MCP market data and was blocked because explicit transaction confirmation was absent. No order was submitted.",
+  "goal": "Buy 5 USDT of BNB only if the current market and policy allow it.",
+  "plan": {
+    "goal": "Buy 5 USDT of BNB only if the current market and policy allow it.",
+    "interpretation": "Create a bounded SPOT BUY intent for BNBUSDT with a 5 USDT quote notional, subject to policy authorization and user confirmation.",
+    "intent": {
+      "taskId": "agentguard-live-20260902062938",
+      "actor": "binance-agentguard-ai-planner",
+      "symbol": "BNBUSDT",
+      "side": "BUY",
+      "quoteAsset": "USDT",
+      "baseAsset": "BNB",
+      "notionalQuote": 5,
+      "maxSlippageBps": 50,
+      "purpose": "Buy 5 USDT of BNB only if the current market and policy allow it."
+    },
+    "constraints": [
+      "SPOT market only",
+      "Symbol must be BNBUSDT",
+      "Quote asset must be USDT",
+      "Notional quote amount is 5 USDT",
+      "Maximum slippage is 50 basis points",
+      "Requires user confirmation",
+      "External policy engine must authorize; planner does not execute or authorize trades"
+    ],
+    "reasoningSummary": "The requested BNB purchase maps to the allowed BNBUSDT SPOT market and matches the 5 USDT notional and 50 bps slippage limits; execution remains contingent on policy authorization and user confirmation.",
+    "confidence": 0.99
+  },
+  "policy": {
+    "id": "binance-live-policy",
+    "version": "1.0.0",
+    "allowedMarkets": ["SPOT"],
+    "allowedSymbols": ["BNBUSDT"],
+    "maxNotionalQuote": 5,
+    "maxDailyNotionalQuote": 5,
+    "maxSlippageBps": 50,
+    "requireUserConfirmation": true
+  },
+  "marketObservation": {
+    "symbol": "BNBUSDT",
+    "ask": 687.15,
+    "source": "binance-mcp",
+    "note": "Read through the authenticated Binance MCP session before the policy decision."
+  },
+  "trace": [
+    { "step": "goal", "status": "completed" },
+    { "step": "quote", "status": "completed" },
+    { "step": "intent", "status": "completed" },
+    { "step": "policy", "status": "completed" },
+    { "step": "execution", "status": "skipped", "detail": "No order was submitted" },
+    { "step": "verification", "status": "skipped" },
+    { "step": "receipt", "status": "completed" }
+  ],
+  "receipt": {
+    "receiptVersion": "1",
+    "taskId": "agentguard-live-20260902062938",
+    "state": "BLOCKED",
+    "gateway": "binance-agentic-mcp",
+    "intentHash": "81bea79bbc2008de8f13660a7c1e8ec393d99549163f309353ba10efede230ea",
+    "policyHash": "fb6dc602c6c1693b76ca41fd87e174d0f388f293f3da0cea1c26529ee0fc5752",
+    "verification": {
+      "passed": false,
+      "reasons": ["user_confirmation_required"],
+      "checks": {}
+    },
+    "createdAt": "2026-09-02T06:31:27.123Z",
+    "evidenceHash": "93cf04fe3aead5fb2a4fa9721077ddf95156eda0bb8fba56735666d125a5a6f9"
+  }
+}

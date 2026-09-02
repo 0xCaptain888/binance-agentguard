@@ -1,77 +1,39 @@
 # Three-minute judge demo
 
-This script is designed for a screen recording. Keep the browser on the
-Binance AgentGuard page and the terminal visible only when running the single
-command below.
+## 0:00–0:25 — Problem
 
-## 0:00–0:25 — the problem
+“An AI Agent can call a trading tool, but a successful tool call is not proof that the action was allowed or that the result was safe. Binance AgentGuard adds a policy gate before the call and an independent verifier after it.”
 
-“An AI agent can call a trading tool, but a successful tool call is not proof
-that the action was allowed or that the result was safe. Binance AgentGuard
-adds a policy gate before the call and an independent verifier after it.”
+## 0:25–0:55 — Binance policy
 
-## 0:25–0:55 — the policy
+Show the **Executable policy** card on the public page: SPOT only, BNBUSDT only, 5 USDT per action, 10 USDT daily limit, 50 bps slippage, and user confirmation required.
 
-Show the policy card:
+“This policy is executable data, not a paragraph in the README. The model proposes; the guard decides.”
 
-- Spot market only
-- BNBUSDT only
-- 5 USDT per action
-- 10 USDT daily limit
-- 50 bps maximum slippage
-- user confirmation required
+## 0:55–1:25 — VERIFIED
 
-“The policy is executable data, not a paragraph in the README.”
+Click **VERIFIED example** in the Judge Console. Point to `GOAL → QUOTE → INTENT → POLICY → EXECUTION → VERIFY → RECEIPT`, the FILLED simulated order, four checks, and the evidence hash.
 
-## 0:55–1:35 — VERIFIED
+“This is a deterministic simulator for the public judge path. It is explicitly labelled as simulation.”
 
-In the public Judge Console, click **VERIFIED example** first. Point to the
-Agent trace:
+## 1:25–1:55 — BLOCKED
 
-```text
-GOAL → QUOTE → INTENT → POLICY → EXECUTION → VERIFY → RECEIPT
-```
+Click **BLOCKED example**.
 
-Then run the CLI equivalent:
+“This asks for 25 USDT against a 5 USDT per-action limit. AgentGuard blocks it before the Binance gateway is called. There is no order ID.”
 
-```bash
-npm run demo:agent
-```
+## 1:55–2:25 — FROZEN
 
-Pause on the first receipt. Point to the quote, filled order, four verifier
-checks and the 64-character evidence hash.
+Click **FROZEN example**.
 
-“The receipt binds the intent and policy hashes to the observed order and the
-verification result.”
+“The gateway returned a filled result, but the observed notional is 10 USDT. The independent verifier fails closed, marks `notionalWithinPolicy=false`, and isolates the task as FROZEN.”
 
-## 1:35–2:05 — BLOCKED
+## 2:25–3:00 — Real proof and close
 
-Click **BLOCKED example** and pause on the receipt.
+Open the **REAL EXECUTION** evidence link and show order `12512896470`, then show the **LIVE READ-ONLY** evidence link. Explain:
 
-“This request asks for 25 USDT against a 5 USDT limit. AgentGuard rejects it
-before the Binance gateway is called. There is no order ID because no order
-was submitted.”
-
-## 2:05–2:35 — FROZEN
-
-Click **FROZEN example** and pause on the receipt.
-
-“The gateway returned a filled order, but the observed notional is 10 USDT,
-outside the policy. The independent verifier fails closed and the task enters
-FROZEN. This is different from BLOCKED: execution happened, so the unsafe
-task is now isolated and cannot continue.”
-
-## 2:35–3:00 — Binance integration and close
-
-Show `src/binance-agentic.ts` and the official Binance documentation links.
-
-“For a live run, this same interface is backed by Binance Agent OS/Agentic
-MCP through an authenticated transport. Credentials are injected at runtime,
-never committed. We use an isolated Agentic sub-account and no withdrawal
-scope. Binance executes; AgentGuard decides whether the request is allowed and
-whether the result is trustworthy.”
+“The real Binance order is separately recorded and independently verifiable. The live Agent run used an actual model and Binance MCP quote, but ended BLOCKED without user confirmation. No credentials are in the repo, and no new trade is needed for judging.”
 
 Close with:
 
-“Binance AgentGuard makes autonomous execution accountable: allowed before
-payment, verified after execution, and frozen on bad output.”
+“Binance AgentGuard is the control plane between an Agent’s intent and Binance execution: allowed before the call, verified after execution, and frozen on bad output.”
