@@ -6,7 +6,7 @@
 
 Binance AgentGuard turns a natural-language goal into a bounded Binance Spot intent, blocks policy violations before execution, independently verifies the result, and seals every outcome in a tamper-evident receipt.
 
-**[Open the public Judge Console](https://0xcaptain888.github.io/binance-agentguard/)** · **[Watch the 3-minute script](docs/demo-script.md)** · **[Read the Agent architecture](docs/agent-loop.md)**
+**[Open the public Judge Console](https://0xcaptain888.github.io/binance-agentguard/)** · **[Use the submission kit](docs/submission-kit.md)** · **[Watch the 3-minute script](docs/demo-script.md)** · **[Read the Agent architecture](docs/agent-loop.md)**
 
 ## Why this is Binance-specific
 

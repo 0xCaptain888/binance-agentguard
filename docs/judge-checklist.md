@@ -1,6 +1,16 @@
 # Judge checklist
 
-The fastest review path is:
+## 60-second browser review
+
+1. Open the public Judge Console.
+2. Click `VERIFIED`, `BLOCKED`, and `FROZEN`.
+3. Inspect the **Three layers of evidence** section.
+4. Confirm the page distinguishes real execution, live read-only evidence, and
+   deterministic simulation.
+
+## Five-minute repository review
+
+The fastest local path is:
 
 ```bash
 npm install
@@ -25,13 +35,20 @@ For each receipt, verify:
 5. `FROZEN` contains an order but at least one failed verification check;
 6. `VERIFIED` has all four checks set to `true`.
 
-The deterministic demo is intentionally labelled simulator evidence. It is the
-credential-free path for every judge. The repository also contains a redacted
-real Binance Spot evidence bundle with a Binance order ID, independently queried
-fill/trade data, and a reproducible evidence hash:
+The deterministic demo is intentionally labelled simulator evidence. The
+repository also contains a real Binance Spot evidence bundle with a Binance
+order ID, independently queried fill/trade data, and a reproducible evidence
+hash:
 
 ```bash
 npm run verify:live-evidence
+```
+
+The second public bundle proves the actual model-planning and live Binance MCP
+read path while also proving the confirmation boundary prevented an order:
+
+```bash
+npm run verify:ai-live-evidence
 ```
 
 Judges who already have an authorized Binance MCP session can additionally run
