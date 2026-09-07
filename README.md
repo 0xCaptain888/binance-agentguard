@@ -1,5 +1,9 @@
 # Binance AgentGuard
 
+> This is the Binance Agentic execution adapter for AgentGuard. It is a
+> separate venue-specific build; the ETHOnline 2026 Continuity submission is
+> [ethonline-agentguard](https://github.com/0xCaptain888/ethonline-agentguard).
+
 [![CI](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/ci.yml) [![CodeQL](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml/badge.svg)](https://github.com/0xCaptain888/binance-agentguard/actions/workflows/codeql.yml) [![Release](https://img.shields.io/github/v/release/0xCaptain888/binance-agentguard?display_name=tag)](https://github.com/0xCaptain888/binance-agentguard/releases/latest) [![Live Demo](https://img.shields.io/badge/live-demo-35d49a)](https://0xcaptain888.github.io/binance-agentguard/)
 
 ![Binance AgentGuard — Agents can act while authority stays bounded](assets/social-preview.svg)
