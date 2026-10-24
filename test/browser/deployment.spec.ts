@@ -17,6 +17,12 @@ async function setup(page: Page) {
       policy: { maxActionUsd: "10000000000000000000", maxDailyUsd: "25000000000000000000", targetToken0Bps: 5000, maxSlippageBps: 100, cooldownSeconds: 300, maxOracleAge: 3600 } },
     transaction: { from: owner, data: "0x1234", value: "0x0", chainId: "0x61" }
   } }));
+  await page.route("**/api/v1/registration", route => route.fulfill({ json: {
+    status: "UNSIGNED_ERC8004_REGISTRATION", chainId: 97,
+    registry: "0x0000000000000000000000000000000000000800", owner,
+    agentURI: "https://agentguard.example/agent.json", simulatedAtBlock: "100",
+    transaction: { from: owner, to: "0x0000000000000000000000000000000000000800", data: "0xfeed", value: "0x0", chainId: "0x61" }
+  } }));
   await page.addInitScript(({ owner, hash }) => {
     const w = window as any; w.walletStub = { chain: "0x61", account: owner, error: 0, sends: [] };
     w.ethereum = { on() {}, removeListener() {}, async request(input: any) {
@@ -82,4 +88,26 @@ test("a failed pre-send readiness recheck prevents any wallet transaction and al
   await page.route("**/api/v1/deployment/preflight", route => route.fulfill({ json: preflight }));
   await page.locator("#refresh-preflight").click(); await expect(page.locator("#deploy")).toBeEnabled();
   expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([]);
+});
+
+test("ERC-8004 registration requires owner review, sends the prepared call and exports only verified proof", async ({ page }) => {
+  await setup(page);
+  await expect(page.locator("#registration-state")).toHaveText("READY");
+  await expect(page.locator("#register")).toBeDisabled();
+  await page.locator("#connect").click();
+  await page.locator("#registration-owner-review").check();
+  await expect(page.locator("#register")).toBeEnabled();
+  expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([]);
+  await page.locator("#register").click();
+  await expect(page.locator("#registration-hash")).toHaveValue(hash);
+  expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([{
+    from: owner, to: "0x0000000000000000000000000000000000000800", data: "0xfeed", value: "0x0", chainId: "0x61"
+  }]);
+  await page.route("**/api/v1/registration/verify", route => route.fulfill({ json: {
+    state: "VERIFIED", transactionHash: hash, registry: "0x0000000000000000000000000000000000000800",
+    agentId: "42", evidenceHash: "0x1234", registration: { state: "VERIFIED", agentId: "42" }
+  } }));
+  await page.locator("#verify-registration").click();
+  await expect(page.locator("#registration-result")).toContainText("independently verified");
+  await expect(page.locator("#export-registration")).toBeEnabled();
 });
