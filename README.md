@@ -48,12 +48,11 @@ desktop execution/freeze/reset, the mobile wallet entry and horizontal
 layout, owner controls during an oracle outage, wallet deployment safeguards,
 rebalance submission recovery after reload or explicit wallet rejection, and
 wallet changes during login/submission plus session timeout and HTTP 401 recovery.
-Fourteen browser cases passed in [Linux CI on October 24, 2026](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40091435120),
-alongside the then-current Node suite and the public-testnet Docker build. The
-current branch contains 18 browser cases and 90 Node tests; the added cases cover
-owner-reviewed ERC-8004 registration, proof inspection, interrupted wallet recovery
-and unavailable browser storage and must pass the
-next Linux CI run before it is described as CI-verified.
+All 18 browser cases passed in [Linux CI on October 25, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40144056531),
+alongside all 90 Node tests on Node 20.18 and Node 22 and the public-testnet Docker
+build. Coverage includes owner-reviewed ERC-8004 registration, proof inspection,
+interrupted wallet recovery and unavailable browser storage. The local EVM avoids
+the console port, and browser startup waits for the HTTP health endpoint.
 Wallet deployment/session cases use wallet and RPC stubs; the local trade cases
 execute actual Anvil contract bytecode. Local macOS browser execution remains
 blocked by the sandbox and is not reported as locally passing. Run the suite with:
