@@ -43,13 +43,16 @@ calldata/events/transfers from canonical RPC data, and generates receipts. It
 never uses public funds and explicitly marks every receipt `campaignProof:
 false`.
 
-The Linux CI is configured to launch the actual local service in Chromium and
-check desktop execution/freeze/reset, the mobile wallet entry and horizontal
+The Linux CI launches the actual local service in Chromium and checks
+desktop execution/freeze/reset, the mobile wallet entry and horizontal
 layout, owner controls during an oracle outage, wallet deployment safeguards,
 rebalance submission recovery after reload or explicit wallet rejection, and
 wallet changes during login/submission plus session timeout and HTTP 401 recovery.
-Fourteen browser cases are configured; local macOS execution is blocked by the
-sandbox, so they are not reported as locally passing. Run the suite with:
+All fourteen browser cases passed in [Linux CI on October 24, 2026](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40091435120),
+alongside 84 Node tests on Node 20.18 and 22 and the public-testnet Docker build.
+Wallet deployment/session cases use wallet and RPC stubs; the local trade cases
+execute actual Anvil contract bytecode. Local macOS browser execution remains
+blocked by the sandbox and is not reported as locally passing. Run the suite with:
 
 ```bash
 npx playwright install chromium
@@ -176,9 +179,9 @@ npm run judge:check
 
 The simulator never moves funds. `judge:check` validates the original CEX path,
 including its nine policy/verification tests, three Agent states, both public
-evidence bundles, and required Judge Console signals. The repository now has 79
-Node tests in total: the original nine plus 70 BSC contract, service,
-configuration, deployment, submission and wallet-session tests.
+evidence bundles, and required Judge Console signals. The repository now has 84
+Node tests in total: the original nine plus 75 BSC contract, service,
+configuration, deployment, submission, wallet-session and operations tests.
 
 The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.
 
