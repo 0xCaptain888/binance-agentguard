@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createPublicClient, http } from "viem";
 import { json } from "./rebalancer.js";
-import { identityRegistry, registrationCard, registrationTransaction } from "./identity.js";
+import { identityRegistry, prepareRegistration, registrationCard } from "./identity.js";
 import { parseDeploymentConfig, prepareDeployment } from "./deployment.js";
 
 async function main() {
@@ -14,14 +14,13 @@ async function main() {
   const output = await prepareDeployment(client, config);
   const owner = config.owner;
   if (config.publicBaseUrl) {
-    const code = await client.getCode({ address: identityRegistry });
-    if (!code || code === "0x") throw new Error("ERC-8004 registry code not found");
+    const registration = await prepareRegistration(client, config.publicBaseUrl, owner);
+    await writeFile(".runtime/bsc-registration-transaction.json", json(registration) + "\n", { mode: 0o600 });
   }
   await mkdir(".runtime", { recursive: true });
   await writeFile(".runtime/bsc-deployment-transaction.json", json(output) + "\n", { mode: 0o600 });
   if (config.publicBaseUrl) {
     await writeFile(".runtime/agent-registration.json", json(registrationCard(config.publicBaseUrl)) + "\n");
-    await writeFile(".runtime/bsc-registration-transaction.json", json({ status: "UNSIGNED_UNREGISTERED", transaction: registrationTransaction(config.publicBaseUrl, owner) }) + "\n");
   }
   console.log(json({ status: output.status, output: ".runtime/bsc-deployment-transaction.json", owner, chainId: 97,
     financialTransactionCreated: false, privateKeyRequired: false }));

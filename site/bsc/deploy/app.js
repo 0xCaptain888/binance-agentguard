@@ -1,5 +1,6 @@
 const $ = id => document.getElementById(id);
 let prepared, provider, account, attempted = false, busy = false, proof, timer, preflight, preflightExpires = 0;
+let registration, registrationAttempted = false, registrationProof;
 const wallets = new Map();
 window.addEventListener('eip6963:announceProvider', event => {
   if (event.detail?.provider && typeof event.detail.info?.name === 'string') wallets.set(event.detail.info.uuid, event.detail);
@@ -10,6 +11,7 @@ function notice(message) { clearTimeout(timer); $('notice').textContent = messag
 function result(badge, title, detail) { $('result').replaceChildren(element('span', badge, `badge ${badge === 'VERIFIED' ? 'good' : badge === 'MISMATCH' ? 'bad' : 'neutral'}`), element('h3', title), element('p', detail)); }
 function rows(id, pairs) { $(id).replaceChildren(...pairs.map(([key, value]) => { const row = element('div'); row.append(element('dt', key), element('dd', String(value))); return row; })); }
 function storageKey() { return `agentguard-deployment:${prepared.initCodeHash}:${prepared.config.owner.toLowerCase()}`; }
+function registrationStorageKey() { return `agentguard-registration:${prepared?.config.owner?.toLowerCase() || 'unknown'}`; }
 function saveAttempt(hash) { attempted = true; try { localStorage.setItem(storageKey(), hash || 'WALLET_REQUESTED'); } catch { /* In-memory duplicate protection remains. */ } }
 function update() {
   const owner = prepared && account?.toLowerCase() === prepared.config.owner.toLowerCase();
@@ -22,6 +24,12 @@ function update() {
   $('deploy').textContent = attempted ? 'Wallet request already started' : 'Review & deploy in wallet';
   $('verify').disabled = busy || !prepared || !/^0x[0-9a-fA-F]{64}$/.test($('hash').value.trim());
   $('export-proof').disabled = !proof;
+  const registrationOwner = prepared && account?.toLowerCase() === prepared.config.owner.toLowerCase();
+  const registrationReady = registration?.status === 'UNSIGNED_ERC8004_REGISTRATION';
+  $('register').disabled = busy || !registrationReady || !registrationOwner || registrationAttempted || !$('registration-owner-review').checked;
+  $('register').textContent = registrationAttempted ? 'Wallet request already started' : 'Register identity in wallet';
+  $('verify-registration').disabled = busy || !registrationReady || !/^0x[0-9a-fA-F]{64}$/.test($('registration-hash').value.trim());
+  $('export-registration').disabled = !registrationProof;
 }
 async function api(path, data) {
   const response = await fetch(`/api/v1/deployment${path}`, data === undefined ? { cache: 'no-store' } : {
@@ -29,6 +37,13 @@ async function api(path, data) {
   });
   if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Start npm run bsc:deploy-console with your local config.');
   const value = await response.json(); if (!response.ok) throw new Error(value.error || 'Operation unavailable'); return value;
+}
+async function registrationApi(path = '', data) {
+  const response = await fetch(`/api/v1/registration${path}`, data === undefined ? { cache: 'no-store' } : {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  });
+  if (!response.headers.get('content-type')?.includes('application/json')) throw new Error('Registration service unavailable.');
+  const value = await response.json(); if (!response.ok) throw new Error(value.error || 'Registration operation unavailable'); return value;
 }
 async function work(action) { if (busy) return; busy = true; update(); try { await action(); } catch (error) { notice(error.message || 'Operation failed'); } finally { busy = false; update(); } }
 function native(raw) {
@@ -92,6 +107,7 @@ $('connect').addEventListener('click', () => work(async () => {
   provider.on?.('accountsChanged', changed); provider.on?.('chainChanged', changed);
 }));
 for (const id of ['review-addresses', 'review-policy', 'hash']) $(id).addEventListener('input', update);
+for (const id of ['registration-owner-review', 'registration-hash']) $(id).addEventListener('input', update);
 $('hash').addEventListener('input', () => {
   if (proof && proof.transactionHash?.toLowerCase() !== $('hash').value.trim().toLowerCase()) {
     proof = undefined; $('proof-details').hidden = true;
@@ -127,6 +143,43 @@ $('export-proof').addEventListener('click', () => {
   if (!proof) return; const url = URL.createObjectURL(new Blob([JSON.stringify(proof, null, 2)], { type: 'application/json' }));
   const link = element('a'); link.href = url; link.download = `agentguard-deployment-${proof.state.toLowerCase()}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
+function registrationResult(badge, title, detail) {
+  $('registration-result').replaceChildren(element('span', badge, `badge ${badge === 'VERIFIED' ? 'good' : badge === 'MISMATCH' ? 'bad' : 'neutral'}`), element('h3', title), element('p', detail));
+}
+$('registration-hash').addEventListener('input', () => {
+  if (registrationProof && registrationProof.transactionHash?.toLowerCase() !== $('registration-hash').value.trim().toLowerCase()) {
+    registrationProof = undefined; $('registration-proof-details').hidden = true;
+    registrationResult('UNVERIFIED HASH', 'Verify the new registration hash.', 'The earlier identity attestation applies only to its original transaction.'); update();
+  }
+});
+$('register').addEventListener('click', () => work(async () => {
+  if (!registration || registration.status !== 'UNSIGNED_ERC8004_REGISTRATION' || registrationAttempted || !$('registration-owner-review').checked) return;
+  await assertWallet();
+  const tx = registration.transaction;
+  if (tx.to?.toLowerCase() !== registration.registry.toLowerCase() || tx.chainId !== '0x61' || tx.value !== '0x0' || tx.from.toLowerCase() !== account.toLowerCase()) throw new Error('Unexpected registration transaction.');
+  registrationAttempted = true;
+  try {
+    const hash = await provider.request({ method: 'eth_sendTransaction', params: [{ from: account, to: tx.to, data: tx.data, value: tx.value, chainId: tx.chainId }] });
+    $('registration-hash').value = hash;
+    try { localStorage.setItem(registrationStorageKey(), hash); } catch {}
+    registrationResult('SENT', 'Registration sent. Verify next.', 'Wait for two confirmations, then verify through both RPC providers.');
+  } catch (error) {
+    if (Number(error.code) === 4001) { registrationAttempted = false; throw new Error('Wallet request cancelled. No automatic retry.'); }
+    registrationResult('CHECK WALLET', 'Submission status is uncertain.', 'Check wallet activity and paste the registration hash. Sending again is disabled to avoid duplicate registration.'); throw error;
+  }
+}));
+$('verify-registration').addEventListener('click', () => work(async () => {
+  registrationProof = undefined; $('registration-proof-details').hidden = true;
+  const hash = $('registration-hash').value.trim(); const verified = await registrationApi('/verify', { hash }); registrationProof = verified;
+  $('registration-proof').textContent = JSON.stringify(verified, null, 2); $('registration-proof-details').hidden = false;
+  if (verified.state === 'VERIFIED') { registrationAttempted = true; try { localStorage.setItem(registrationStorageKey(), hash); } catch {} registrationResult('VERIFIED', `Identity #${verified.agentId} independently verified.`, `Registry ${verified.registry}. Evidence ${verified.evidenceHash}`); }
+  else if (verified.state === 'PENDING') registrationResult('PENDING', 'Waiting for inclusion or confirmation.', verified.reason);
+  else registrationResult('MISMATCH', 'Registration did not match.', `Failed checks: ${verified.reasons.join(', ')}. Inspect the evidence before continuing.`);
+}));
+$('export-registration').addEventListener('click', () => {
+  if (!registrationProof) return; const url = URL.createObjectURL(new Blob([JSON.stringify(registrationProof, null, 2)], { type: 'application/json' }));
+  const link = element('a'); link.href = url; link.download = `agentguard-registration-${registrationProof.state.toLowerCase()}.json`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
 api('').then(value => {
   if (value.chainId !== 97 || value.status !== 'UNSIGNED_TESTNET_DEPLOYMENT') throw new Error('Expected unsigned BSC testnet configuration.');
   prepared = value;
@@ -140,5 +193,20 @@ api('').then(value => {
   let stored; try { stored = localStorage.getItem(storageKey()); } catch {}
   if (stored) { attempted = true; if (/^0x[0-9a-fA-F]{64}$/.test(stored)) $('hash').value = stored; }
   result(attempted ? 'RESUME VERIFICATION' : 'NOT DEPLOYED', attempted ? 'Check the existing wallet request.' : 'Configuration ready for review.', 'Review both panels. No transaction is sent until you explicitly confirm in your wallet.'); update();
-  return work(checkReadiness);
+  return registrationApi().then(value => {
+    registration = value;
+    if (registration.status === 'UNSIGNED_ERC8004_REGISTRATION') {
+      rows('registration-details', [['Registry', registration.registry], ['Owner', registration.owner], ['Registration URI', registration.agentURI], ['Prepared at block', registration.simulatedAtBlock]]);
+      $('registration-state').textContent = 'READY'; $('registration-state').className = 'badge good';
+      $('registration-summary').textContent = 'Review the exact registry call, then confirm once in the configured owner wallet. Verification requires two confirmations and two RPC providers.';
+      let stored; try { stored = localStorage.getItem(registrationStorageKey()); } catch {}
+      if (stored && /^0x[0-9a-fA-F]{64}$/.test(stored)) { registrationAttempted = true; $('registration-hash').value = stored; }
+      registrationResult(registrationAttempted ? 'RESUME VERIFICATION' : 'READY', registrationAttempted ? 'Check the existing registration request.' : 'Identity registration ready for review.', 'No transaction is sent until you explicitly confirm in your wallet.');
+    } else {
+      $('registration-state').textContent = 'NOT PREPARED'; $('registration-state').className = 'badge warn';
+      $('registration-summary').textContent = value.reason || 'Configure a public HTTPS origin before preparing registration.';
+      registrationResult('NOT REGISTERED', 'Waiting for a public origin.', value.reason || 'Use an HTTPS deployment URL before requesting a wallet signature.');
+    }
+    update(); return work(checkReadiness);
+  });
 }).catch(error => { $('service-note').textContent = 'Deployment service offline or configuration unavailable.'; result('SERVICE REQUIRED', 'Start your deployment service.', error.message); });

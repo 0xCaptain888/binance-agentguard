@@ -7,14 +7,14 @@ import { startLocalFixture, sendLocalTransaction, type LocalFixture } from "./lo
 import { json, planFromChain, portfolio, readSnapshot, verifyExecution } from "./rebalancer.js";
 import { JobStore, type Job } from "./store.js";
 import { WalletSessions } from "./auth.js";
-import { registrationCard } from "./identity.js";
+import { registrationCard, verifiedRegistration, verifyRegistration, type Registration } from "./identity.js";
 import { tokenAbi, vaultAbi } from "./abi.js";
 import { serviceBoundary, trustedHost, sameOrigin } from "./boundary.js";
 import { pendingMonitor } from "./operations.js";
 import { claimJournal } from "./journal-lock.js";
 
 export type ServerOptions = { mode: "local" | "testnet"; port?: number; rpcUrl?: string; verifierRpcUrl?: string; vault?: Address; journal?: string;
-  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number };
+  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number; registrationHash?: Hash };
 class HttpError extends Error { constructor(public code: number, message: string) { super(message); } }
 const address = (value: unknown) => {
   if (typeof value !== "string" || !isAddress(value)) throw new HttpError(400, "Valid wallet address required");
@@ -57,6 +57,13 @@ export async function startBscServer(options: ServerOptions) {
   }
   try {
     const initial = await readSnapshot(client, vault, undefined, true);
+    let registration: Registration | undefined;
+    if (!fixture && options.registrationHash) {
+      if (!boundary.publicOrigin) throw new Error("Identity verification requires the configured public HTTPS origin");
+      const proof = await verifyRegistration(client, verifier, boundary.publicOrigin, initial.owner, options.registrationHash);
+      registration = verifiedRegistration(proof);
+      if (!registration) throw new Error("Configured ERC-8004 registration is not independently verified");
+    }
     const checkpoint = fixture ? String(await fixture.rpc("evm_snapshot")) : undefined;
     let resetPoint = checkpoint;
     const journal = options.journal ?? (fixture ? `.runtime/local-${process.pid}-${Date.now()}.json` : ".runtime/bsc-testnet-journal.json");
@@ -114,10 +121,10 @@ export async function startBscServer(options: ServerOptions) {
             return reply(200, { mode: options.mode, environment: fixture ? "LOCAL_EVM" : "BSC_TESTNET", campaignProof: false,
               snapshot, portfolio: snapshot.pricingAvailable ? portfolio(snapshot) : null, journal: store.view,
               pricing: { available: snapshot.pricingAvailable, reason: snapshot.pricingAvailable ? null : "oracle_unavailable_or_stale" },
-              readiness: { publicOriginConfigured: !!boundary.publicOrigin, deployedPublicly: false, erc8004Registered: false, marketplaceListed: false, campaignQualified: false },
+              readiness: { publicOriginConfigured: !!boundary.publicOrigin, deployedPublicly: false, erc8004Registered: !!registration, marketplaceListed: false, campaignQualified: false },
               note: fixture ? "Mock tokens, oracle and router on an isolated local EVM. No campaign credit." : "Unsigned wallet execution; separate RPC verifier. Registration, listing and campaign eligibility are unverified." });
           }
-          if (path === "/.well-known/agent-registration.json") return reply(200, registrationCard(origin));
+          if (path === "/.well-known/agent-registration.json") return reply(200, registrationCard(origin, registration));
           const files: Record<string, [string, string]> = {
             "/": ["site/bsc/index.html", "text/html"], "/bsc/": ["site/bsc/index.html", "text/html"],
             "/bsc/app.js": ["site/bsc/app.js", "text/javascript"], "/bsc/style.css": ["site/bsc/style.css", "text/css"],
@@ -289,6 +296,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const app = await startBscServer({ mode, port: Number(process.env.PORT ?? 43188), rpcUrl: process.env.BSC_TESTNET_RPC_URL,
       verifierRpcUrl: process.env.BSC_VERIFIER_RPC_URL, vault: process.env.BSC_VAULT_ADDRESS as Address | undefined,
       publicOrigin: process.env.BSC_PUBLIC_ORIGIN, listenHost: process.env.BSC_LISTEN_HOST, journal: process.env.BSC_JOURNAL_PATH,
+      registrationHash: process.env.BSC_REGISTRATION_TX_HASH as Hash | undefined,
       reconcileIntervalMs: process.env.BSC_RECONCILE_INTERVAL_MS === undefined ? undefined : Number(process.env.BSC_RECONCILE_INTERVAL_MS) });
     console.log(`AgentGuard ${mode} console: ${app.origin}/bsc/`);
     for (const signal of ["SIGINT", "SIGTERM"] as const) process.once(signal, () => { void app.close().then(() => process.exit(0)); });

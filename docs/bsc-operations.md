@@ -28,6 +28,12 @@ external prerequisites; the repository does not provision a paid resource.
    Its challenge must show that exact public origin, chain and vault. Review a
    proposal, explicitly sign, and inspect its independent proof.
 
+If the deployment config includes a public HTTPS `publicBaseUrl`, the deployment
+console also exposes an ERC-8004 identity panel. Review the generated URI and
+registry, confirm the unsigned `register(string agentURI)` call once in the owner
+wallet, wait for two confirmations, then verify the hash. The verifier uses both
+RPCs and keeps the registration card inactive until the proof is `VERIFIED`.
+
 The app runs as the unprivileged `node` user, with a read-only root filesystem
 and a named `/data` journal volume. Its port has no host mapping. The Caddy
 gateway handles HTTPS and preserves Host; forwarding headers cannot select an

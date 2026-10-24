@@ -142,10 +142,12 @@ liquidity/fill guarantee. Feed-to-asset mapping, router trust and nonstandard
 token behavior still require review. `bsc:prepare` alone checks constructor
 compatibility; run the online doctor before a manual wallet deployment too.
 
-The deployment service exposes `GET /api/v1/deployment`, plus same-origin,
-JSON-only, rate-limited `POST /api/v1/deployment/preflight` with `{}` and
-`POST /api/v1/deployment/verify` with a transaction hash. Preflight never accepts
-replacement addresses from the browser or sends a transaction.
+The deployment service exposes `GET /api/v1/deployment` and
+`GET /api/v1/registration`, plus same-origin, JSON-only, rate-limited POST
+endpoints for `/api/v1/deployment/preflight`, `/api/v1/deployment/verify`, and
+`/api/v1/registration/verify`. Preflight never accepts replacement addresses from
+the browser or sends a transaction. Registration verification only accepts a hash
+for the configured owner and public URI; it never signs or broadcasts.
 
 For a manual wallet workflow:
 

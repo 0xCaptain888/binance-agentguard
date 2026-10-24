@@ -1,6 +1,6 @@
 {
   "name": "binance-agentguard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "A policy-gated Binance Agent OS application with independent verification and receipts.",
@@ -23,6 +23,7 @@
     "bsc:demo": "node --import tsx src/bsc/demo.ts",
     "bsc:prepare": "node --env-file=.env --import tsx src/bsc/prepare.ts",
     "bsc:verify-deployment": "node --env-file=.env --import tsx src/bsc/verify-deployment.ts",
+    "bsc:verify-registration": "node --env-file=.env --import tsx src/bsc/verify-registration.ts",
     "bsc:deploy-console": "node --env-file=.env --import tsx src/bsc/deployment-server.ts",
     "bsc:readiness": "tsx src/bsc/readiness.ts",
     "bsc:doctor": "node --import tsx src/bsc/doctor.ts",

@@ -19,6 +19,19 @@
     <button id="refresh-preflight" class="secondary" disabled>Check readiness</button>
     <p class="body-copy">A passing check expires after 60 seconds. Checks run again before the wallet request. Feed-to-asset mapping, router trust and token behavior still need your review.</p>
   </section>
+  <section class="panel registration-panel" aria-labelledby="registration-title">
+    <div class="panel-heading"><div><span class="eyebrow">ERC-8004 · IDENTITY REGISTRY</span><h2 id="registration-title">Register this agent.</h2></div><span id="registration-state" class="badge neutral">NOT PREPARED</span></div>
+    <p id="registration-summary" class="body-copy">Registration creates an on-chain identity record for the public HTTPS service. It is separate from vault deployment and does not prove a marketplace listing or campaign eligibility.</p>
+    <dl id="registration-details"></dl>
+    <div class="review-checks registration-review">
+      <label><input id="registration-owner-review" type="checkbox">I confirmed the registry, owner address and public registration URI.</label>
+    </div>
+    <button id="register" class="accent" disabled>Register identity in wallet</button>
+    <label>Registration transaction hash<input id="registration-hash" placeholder="0x…" autocomplete="off" spellcheck="false"></label>
+    <div class="button-row"><button id="verify-registration" class="secondary" disabled>Verify registration</button><button id="export-registration" class="text-button" disabled>Export identity proof</button></div>
+    <div id="registration-result" class="decision" role="status" aria-live="polite"><span class="badge neutral">NOT REGISTERED</span><h3>Waiting for a public origin.</h3><p>Use an HTTPS deployment URL before requesting a wallet signature.</p></div>
+    <details id="registration-proof-details" hidden><summary>Inspect registration checks & evidence</summary><pre id="registration-proof"></pre></details>
+  </section>
   <div class="desk">
     <section class="panel"><div class="panel-heading"><div><span class="eyebrow">FIXED AT DEPLOYMENT</span><h2>Authority & dependencies</h2></div><span class="badge neutral">CHAIN 97</span></div>
       <dl id="addresses"></dl><h2>Initial policy</h2><dl id="policy"></dl>

@@ -39,3 +39,38 @@ contract TestRouter {
         require(IERC20(path[1]).transfer(to, amounts[1]));
     }
 }
+
+contract TestIdentityRegistry {
+    uint256 private lastId;
+    mapping(uint256 => address) private owners;
+    mapping(uint256 => string) private uris;
+
+    event Registered(uint256 indexed agentId, string agentURI, address indexed owner);
+
+    function register(string calldata agentURI) external returns (uint256 agentId) {
+        agentId = lastId++;
+        owners[agentId] = msg.sender;
+        uris[agentId] = agentURI;
+        emit Registered(agentId, agentURI, msg.sender);
+    }
+
+    function ownerOf(uint256 agentId) external view returns (address) {
+        require(owners[agentId] != address(0), "not minted");
+        return owners[agentId];
+    }
+
+    function tokenURI(uint256 agentId) external view returns (string memory) {
+        require(owners[agentId] != address(0), "not minted");
+        return uris[agentId];
+    }
+
+    function setURI(uint256 agentId, string calldata agentURI) external {
+        require(msg.sender == owners[agentId], "not owner");
+        uris[agentId] = agentURI;
+    }
+
+    function transferForTest(uint256 agentId, address nextOwner) external {
+        require(msg.sender == owners[agentId], "not owner");
+        owners[agentId] = nextOwner;
+    }
+}

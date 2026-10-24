@@ -71,6 +71,7 @@ npm run bsc:doctor
 npm run bsc:doctor -- --online
 npm run bsc:deploy-console -- config/bsc-testnet.json
 # open the printed /bsc/deploy/ URL; review, confirm in the owner wallet, verify
+# then review the ERC-8004 panel, register once in the owner wallet, and verify
 # only after VERIFIED: set BSC_VAULT_ADDRESS in .env
 npm run bsc:testnet
 ```
@@ -92,6 +93,16 @@ with a 20% balance buffer. The deployment console shows these checks, expires
 readiness after 60 seconds, and rechecks before opening the wallet. Passing
 does not certify the feed-to-asset mapping, router trust, a future fill or
 campaign eligibility. Missing configuration is reported as `BLOCKED`.
+
+When `publicBaseUrl` is an HTTPS origin, the deployment console also prepares an
+ERC-8004 BSC Testnet `register(string agentURI)` transaction for the official
+Identity Registry. The server never signs or broadcasts it. The owner reviews the
+registry and URI, confirms once in the browser wallet, waits for two confirmations,
+then selects **Verify registration**. Verification binds the sender, exact calldata,
+`Registered` event, historical/current owner and URI, canonical block, registry
+bytecode, and a second RPC response. Until that proof is `VERIFIED`, the public
+registration card remains inactive. Registration is not a marketplace listing,
+independent hire, or campaign qualification.
 
 Rebalance requests save public plan metadata before opening the wallet and use
 Web Locks to prevent concurrent submissions from tabs in the same browser.

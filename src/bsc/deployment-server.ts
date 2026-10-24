@@ -6,11 +6,13 @@ import type { Hash, PublicClient } from "viem";
 import { parseDeploymentConfig, prepareDeployment, testnetClients, verifyDeployment, type DeploymentConfig } from "./deployment.js";
 import { json } from "./rebalancer.js";
 import { deploymentPreflight } from "./preflight.js";
+import { prepareRegistration, verifyRegistration, verifiedRegistration } from "./identity.js";
 
 // This service only prepares data and reads chain state. It has no wallet or signer.
 export async function startDeploymentServer(client: PublicClient, verifier: PublicClient, config: DeploymentConfig, port = 43191) {
   if (await verifier.getChainId() !== 97) throw new Error("Verifier must use BSC testnet 97");
   const prepared = await prepareDeployment(client, config);
+  const registration = config.publicBaseUrl ? await prepareRegistration(client, config.publicBaseUrl, config.owner) : undefined;
   let origin = "", verifying = false, requests = 0, windowAt = Date.now();
   const server = createServer(async (req, res) => {
     res.setHeader("Cache-Control", "no-store"); res.setHeader("X-Content-Type-Options", "nosniff"); res.setHeader("Referrer-Policy", "no-referrer");
@@ -21,6 +23,10 @@ export async function startDeploymentServer(client: PublicClient, verifier: Publ
       const path = new URL(req.url ?? "/", origin).pathname;
       if (req.method === "GET") {
         if (path === "/api/v1/deployment") return reply(200, prepared);
+        if (path === "/api/v1/registration") return reply(200, registration ?? {
+          status: "REGISTRATION_UNAVAILABLE", chainId: 97, campaignProof: false,
+          reason: "Configure publicBaseUrl as a public HTTPS origin before preparing ERC-8004 registration."
+        });
         if (path === "/") { res.writeHead(302, { Location: "/bsc/deploy/" }); return res.end(); }
         const files: Record<string, [string, string]> = {
           "/bsc/deploy/": ["site/bsc/deploy/index.html", "text/html"], "/bsc/deploy/app.js": ["site/bsc/deploy/app.js", "text/javascript"],
@@ -29,7 +35,7 @@ export async function startDeploymentServer(client: PublicClient, verifier: Publ
         if (!files[path]) return reply(404, { error: "Not found" });
         const [file, mime] = files[path]; const data = await readFile(resolve(file)); res.writeHead(200, { "Content-Type": mime }); return res.end(data);
       }
-      if (req.method !== "POST" || !["/api/v1/deployment/verify", "/api/v1/deployment/preflight"].includes(path)) return reply(405, { error: "Method not allowed" });
+      if (req.method !== "POST" || !["/api/v1/deployment/verify", "/api/v1/deployment/preflight", "/api/v1/registration/verify"].includes(path)) return reply(405, { error: "Method not allowed" });
       if (req.headers.origin !== origin || req.headers["sec-fetch-site"] === "cross-site") return reply(403, { error: "Same-origin request required" });
       if (!req.headers["content-type"]?.startsWith("application/json")) return reply(415, { error: "Send application/json" });
       if (Date.now() - windowAt > 60000) { requests = 0; windowAt = Date.now(); }
@@ -43,6 +49,20 @@ export async function startDeploymentServer(client: PublicClient, verifier: Publ
         verifying = true;
         try { return reply(200, await deploymentPreflight(client, verifier, config)); }
         finally { verifying = false; }
+      }
+      if (path === "/api/v1/registration/verify") {
+        if (!registration) return reply(409, { error: "Configure a public HTTPS origin before verifying registration" });
+        let hash: Hash;
+        try {
+          const input = JSON.parse(Buffer.concat(chunks).toString());
+          if (!input || typeof input.hash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(input.hash)) throw new Error(); hash = input.hash;
+        } catch { return reply(400, { error: "Valid registration transaction hash required" }); }
+        const proof = await verifyRegistration(client, verifier, config.publicBaseUrl, config.owner, hash);
+        if (proof.state === "VERIFIED") {
+          await mkdir(".runtime", { recursive: true });
+          await writeFile(`.runtime/bsc-registration-${hash.toLowerCase()}.json`, json(proof) + "\n", { mode: 0o600 });
+        }
+        return reply(200, { ...proof, registration: verifiedRegistration(proof) });
       }
       let hash: Hash;
       try {
