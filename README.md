@@ -50,8 +50,9 @@ rebalance submission recovery after reload or explicit wallet rejection, and
 wallet changes during login/submission plus session timeout and HTTP 401 recovery.
 Fourteen browser cases passed in [Linux CI on October 24, 2026](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40091435120),
 alongside the then-current Node suite and the public-testnet Docker build. The
-current branch contains 15 browser cases and 90 Node tests; the added case covers
-owner-reviewed ERC-8004 registration and verified-proof export and must pass the
+current branch contains 18 browser cases and 90 Node tests; the added cases cover
+owner-reviewed ERC-8004 registration, proof inspection, interrupted wallet recovery
+and unavailable browser storage and must pass the
 next Linux CI run before it is described as CI-verified.
 Wallet deployment/session cases use wallet and RPC stubs; the local trade cases
 execute actual Anvil contract bytecode. Local macOS browser execution remains
@@ -106,6 +107,11 @@ then selects **Verify registration**. Verification binds the sender, exact calld
 bytecode, and a second RPC response. Until that proof is `VERIFIED`, the public
 registration card remains inactive. Registration is not a marketplace listing,
 independent hire, or campaign qualification.
+
+Deployment and identity-registration requests persist a recovery marker before
+opening the wallet. An uncertain response remains locked after reload, while an
+explicit wallet rejection permits deliberate retry. Unavailable browser storage
+blocks new requests before a transaction is sent.
 
 Rebalance requests save public plan metadata before opening the wallet and use
 Web Locks to prevent concurrent submissions from tabs in the same browser.
@@ -193,8 +199,8 @@ npm run judge:check
 
 The simulator never moves funds. `judge:check` validates the original CEX path,
 including its nine policy/verification tests, three Agent states, both public
-evidence bundles, and required Judge Console signals. The repository now has 84
-Node tests in total: the original nine plus 75 BSC contract, service,
+evidence bundles, and required Judge Console signals. The repository now has 90
+Node tests in total: the original nine plus 81 BSC contract, service,
 configuration, deployment, submission, wallet-session and operations tests.
 
 The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.

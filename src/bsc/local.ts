@@ -9,12 +9,15 @@ export const localChain = defineChain({ id: 31337, name: "AgentGuard isolated lo
   nativeCurrency: { name: "Local test ether", symbol: "TEST", decimals: 18 },
   rpcUrls: { default: { http: ["http://127.0.0.1"] } } });
 
-export async function startLocalFixture() {
-  const port = await new Promise<number>((resolve, reject) => {
+export async function startLocalFixture(excludedPorts: readonly number[] = []) {
+  // The OS ephemeral range can include the HTTP console port. Do not let
+  // Anvil bind it while the console is still preparing its contracts.
+  let port: number;
+  do { port = await new Promise<number>((resolve, reject) => {
     const probe = createServer(); probe.on("error", reject);
     probe.listen(0, "127.0.0.1", () => { const port = (probe.address() as { port: number }).port;
       probe.close(error => error ? reject(error) : resolve(port)); });
-  });
+  }); } while (excludedPorts.includes(port));
   const url = `http://127.0.0.1:${port}`;
   const server = spawn(process.execPath, [fileURLToPath(new URL("../../node_modules/@foundry-rs/anvil/bin.mjs", import.meta.url)),
     "--host", "127.0.0.1", "--port", String(port), "--chain-id", "31337", "--hardfork", "shanghai", "--accounts", "4", "--quiet"],

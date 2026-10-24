@@ -12,7 +12,16 @@ function result(badge, title, detail) { $('result').replaceChildren(element('spa
 function rows(id, pairs) { $(id).replaceChildren(...pairs.map(([key, value]) => { const row = element('div'); row.append(element('dt', key), element('dd', String(value))); return row; })); }
 function storageKey() { return `agentguard-deployment:${prepared.initCodeHash}:${prepared.config.owner.toLowerCase()}`; }
 function registrationStorageKey() { return `agentguard-registration:${prepared?.config.owner?.toLowerCase() || 'unknown'}`; }
-function saveAttempt(hash) { attempted = true; try { localStorage.setItem(storageKey(), hash || 'WALLET_REQUESTED'); } catch { /* In-memory duplicate protection remains. */ } }
+function saveAttempt(hash) {
+  try { localStorage.setItem(storageKey(), hash || 'WALLET_REQUESTED'); }
+  catch { throw new Error('Browser storage is unavailable. Restore storage before requesting a deployment.'); }
+  attempted = true;
+}
+function saveRegistrationAttempt(hash) {
+  try { localStorage.setItem(registrationStorageKey(), hash || 'WALLET_REQUESTED'); }
+  catch { throw new Error('Browser storage is unavailable. Restore storage before requesting registration.'); }
+  registrationAttempted = true;
+}
 function update() {
   const owner = prepared && account?.toLowerCase() === prepared.config.owner.toLowerCase();
   $('connect').disabled = busy || !prepared; $('connect').textContent = account ? `${account.slice(0, 8)}… · Disconnect` : 'Connect Wallet';
@@ -127,7 +136,7 @@ $('deploy').addEventListener('click', () => work(async () => {
     $('hash').value = hash; saveAttempt(hash);
     result('SENT', 'Deployment sent. Verify next.', 'Wait for two confirmations, then verify with the independent RPC.');
   } catch (error) {
-    if (Number(error.code) === 4001) { attempted = false; try { localStorage.removeItem(storageKey()); } catch {} throw new Error('Wallet request cancelled. No automatic retry.'); }
+    if (Number(error.code) === 4001) { try { localStorage.removeItem(storageKey()); attempted = false; } catch {} throw new Error('Wallet request cancelled. No automatic retry.'); }
     result('CHECK WALLET', 'Submission status is uncertain.', 'Check wallet activity and paste the deployment hash. Sending again is disabled to avoid duplicate deployment.'); throw error;
   }
 }));
@@ -157,14 +166,18 @@ $('register').addEventListener('click', () => work(async () => {
   await assertWallet();
   const tx = registration.transaction;
   if (tx.to?.toLowerCase() !== registration.registry.toLowerCase() || tx.chainId !== '0x61' || tx.value !== '0x0' || tx.from.toLowerCase() !== account.toLowerCase()) throw new Error('Unexpected registration transaction.');
-  registrationAttempted = true;
+  saveRegistrationAttempt();
   try {
     const hash = await provider.request({ method: 'eth_sendTransaction', params: [{ from: account, to: tx.to, data: tx.data, value: tx.value, chainId: tx.chainId }] });
     $('registration-hash').value = hash;
-    try { localStorage.setItem(registrationStorageKey(), hash); } catch {}
+    saveRegistrationAttempt(hash);
     registrationResult('SENT', 'Registration sent. Verify next.', 'Wait for two confirmations, then verify through both RPC providers.');
   } catch (error) {
-    if (Number(error.code) === 4001) { registrationAttempted = false; throw new Error('Wallet request cancelled. No automatic retry.'); }
+    if (Number(error.code) === 4001) {
+      // Retain the guard if storage cannot be cleared; a reload must not resend.
+      try { localStorage.removeItem(registrationStorageKey()); registrationAttempted = false; } catch {}
+      throw new Error('Wallet request cancelled. No automatic retry.');
+    }
     registrationResult('CHECK WALLET', 'Submission status is uncertain.', 'Check wallet activity and paste the registration hash. Sending again is disabled to avoid duplicate registration.'); throw error;
   }
 }));
@@ -200,7 +213,7 @@ api('').then(value => {
       $('registration-state').textContent = 'READY'; $('registration-state').className = 'badge good';
       $('registration-summary').textContent = 'Review the exact registry call, then confirm once in the configured owner wallet. Verification requires two confirmations and two RPC providers.';
       let stored; try { stored = localStorage.getItem(registrationStorageKey()); } catch {}
-      if (stored && /^0x[0-9a-fA-F]{64}$/.test(stored)) { registrationAttempted = true; $('registration-hash').value = stored; }
+      if (stored) { registrationAttempted = true; if (/^0x[0-9a-fA-F]{64}$/.test(stored)) $('registration-hash').value = stored; }
       registrationResult(registrationAttempted ? 'RESUME VERIFICATION' : 'READY', registrationAttempted ? 'Check the existing registration request.' : 'Identity registration ready for review.', 'No transaction is sent until you explicitly confirm in your wallet.');
     } else {
       $('registration-state').textContent = 'NOT PREPARED'; $('registration-state').className = 'badge warn';

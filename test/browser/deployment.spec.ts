@@ -90,7 +90,7 @@ test("a failed pre-send readiness recheck prevents any wallet transaction and al
   expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([]);
 });
 
-test("ERC-8004 registration requires owner review, sends the prepared call and exports only verified proof", async ({ page }) => {
+test("ERC-8004 registration requires owner review, sends the prepared call and exposes verified proof", async ({ page }) => {
   await setup(page);
   await expect(page.locator("#registration-state")).toHaveText("READY");
   await expect(page.locator("#register")).toBeDisabled();
@@ -110,4 +110,41 @@ test("ERC-8004 registration requires owner review, sends the prepared call and e
   await page.locator("#verify-registration").click();
   await expect(page.locator("#registration-result")).toContainText("independently verified");
   await expect(page.locator("#export-registration")).toBeEnabled();
+});
+
+test("uncertain registration survives reload without opening a second wallet transaction", async ({ page }) => {
+  await setup(page);
+  await page.locator("#connect").click(); await page.locator("#registration-owner-review").check();
+  await page.evaluate(() => { (window as any).walletStub.error = 4900; });
+  await page.locator("#register").click();
+  await expect(page.locator("#registration-result")).toContainText("Submission status is uncertain");
+  await page.reload();
+  await expect(page.locator("#registration-state")).toHaveText("READY");
+  await page.locator("#connect").click(); await page.locator("#registration-owner-review").check();
+  await expect(page.locator("#register")).toBeDisabled();
+  await expect(page.locator("#registration-result")).toContainText("Check the existing registration request");
+  expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([]);
+  await page.locator("#registration-hash").fill(hash);
+  await expect(page.locator("#verify-registration")).toBeEnabled();
+});
+
+test("an explicitly rejected registration permits deliberate retry without resending automatically", async ({ page }) => {
+  await setup(page);
+  await page.locator("#connect").click(); await page.locator("#registration-owner-review").check();
+  await page.evaluate(() => { (window as any).walletStub.error = 4001; });
+  await page.locator("#register").click(); await expect(page.locator("#notice")).toContainText("cancelled");
+  await expect(page.locator("#register")).toBeEnabled();
+  expect(await page.evaluate(() => (window as any).walletStub.sends.length)).toBe(1);
+  await page.evaluate(() => { (window as any).walletStub.error = 0; });
+  await page.locator("#register").click(); await expect(page.locator("#registration-hash")).toHaveValue(hash);
+  expect(await page.evaluate(() => (window as any).walletStub.sends.length)).toBe(2);
+});
+
+test("unavailable browser storage blocks deployment and registration before any wallet send", async ({ page }) => {
+  await setup(page); await ready(page);
+  await page.locator("#registration-owner-review").check();
+  await page.evaluate(() => { Storage.prototype.setItem = () => { throw new DOMException("Denied", "SecurityError"); }; });
+  await page.locator("#deploy").click(); await expect(page.locator("#notice")).toContainText("storage is unavailable");
+  await page.locator("#register").click(); await expect(page.locator("#notice")).toContainText("storage is unavailable");
+  expect(await page.evaluate(() => (window as any).walletStub.sends)).toEqual([]);
 });

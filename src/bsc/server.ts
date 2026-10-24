@@ -43,7 +43,7 @@ export async function startBscServer(options: ServerOptions) {
   let unlock: (() => Promise<void>) | undefined, timer: ReturnType<typeof setInterval> | undefined;
   let client: PublicClient, verifier: PublicClient, vault: Address;
   if (options.mode === "local") {
-    fixture = await startLocalFixture(); client = verifier = fixture.client; vault = fixture.vault;
+    fixture = await startLocalFixture([options.port ?? 43188]); client = verifier = fixture.client; vault = fixture.vault;
   } else {
     if (!options.rpcUrl || !options.verifierRpcUrl || !options.vault) throw new Error("Testnet needs RPC, independent verifier RPC and deployed vault");
     for (const value of [options.rpcUrl, options.verifierRpcUrl]) {
