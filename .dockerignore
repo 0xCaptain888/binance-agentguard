@@ -1,0 +1,11 @@
+**/node_modules
+.git
+.env
+.env.*
+!.env.example
+.runtime
+config/bsc-testnet.json
+test-results
+playwright-report
+evidence/live
+deploy/bsc/runtime.env

@@ -8,6 +8,136 @@
 
 ![Binance AgentGuard — Agents can act while authority stays bounded](assets/social-preview.svg)
 
+## New: owner-custodied BSC rebalancing
+
+AgentGuard v0.4 adds a second, deliberately separate execution path for BNB
+Chain: each user owns a two-asset vault while an operator may perform only the
+rebalance that the vault policy permits. The operator cannot withdraw, change
+policy, pause the vault, redirect output, exceed the USD budget, accept a stale
+oracle, or execute a trade that fails to improve allocation drift.
+
+**[Preview the BSC console](https://0xcaptain888.github.io/binance-agentguard/bsc/)** · **[Read the architecture and threat model](docs/bsc-rebalancer.md)**
+
+The GitHub Pages URL is a static UI preview. The complete interactive path uses
+the local or testnet service described below; the page never fabricates a live
+backend or campaign evidence.
+
+```text
+Portfolio drift → deterministic proposal → owner/operator signature
+→ on-chain vault enforcement → independent RPC verification
+→ VERIFIED receipt or FROZEN runner
+```
+
+Run the full local proof with mock assets and a real isolated EVM:
+
+```bash
+npm install
+npm run bsc:check
+npm run bsc:serve
+# open http://127.0.0.1:43188/bsc/
+```
+
+`bsc:check` compiles and deploys the Solidity bytecode to Anvil, executes actual
+ERC-20 transfers through the test router, checks policy failures, verifies
+calldata/events/transfers from canonical RPC data, and generates receipts. It
+never uses public funds and explicitly marks every receipt `campaignProof:
+false`.
+
+The Linux CI is configured to launch the actual local service in Chromium and
+check desktop execution/freeze/reset, the mobile wallet entry and horizontal
+layout, owner controls during an oracle outage, wallet deployment safeguards,
+rebalance submission recovery after reload or explicit wallet rejection, and
+wallet changes during login/submission plus session timeout and HTTP 401 recovery.
+Fourteen browser cases are configured; local macOS execution is blocked by the
+sandbox, so they are not reported as locally passing. Run the suite with:
+
+```bash
+npx playwright install chromium
+npm run bsc:browser
+```
+
+Browser screenshots are test artifacts, not campaign evidence.
+
+The BSC testnet path is wallet-signed and keyless on the server. It requires a
+reviewed vault deployment plus two independent HTTPS RPC providers:
+
+```bash
+cp config/bsc-testnet.example.json config/bsc-testnet.json
+# configure public addresses and copy .env.example to .env; set both HTTPS RPCs
+npm run bsc:doctor
+npm run bsc:doctor -- --online
+npm run bsc:deploy-console -- config/bsc-testnet.json
+# open the printed /bsc/deploy/ URL; review, confirm in the owner wallet, verify
+# only after VERIFIED: set BSC_VAULT_ADDRESS in .env
+npm run bsc:testnet
+```
+
+The deployment service holds no signing key. The owner reviews the addresses
+and policy and explicitly confirms contract creation in their wallet. The
+console prevents automatic retries after an uncertain submission. A separate
+RPC checks two confirmations, exact creation calldata, deployed runtime and
+initial configuration. It needs historical RPC state; this attests to the
+deployment block, not future policy or security. For a manual wallet workflow,
+use `bsc:prepare` and `bsc:verify-deployment` as documented in the architecture
+guide. BSC mainnet is disabled in this unaudited version.
+
+`bsc:doctor` lists missing public addresses, policy errors and RPC settings
+without printing endpoint secrets. `--online` checks both RPCs at the same
+recent block: owner test gas, dependency code, token metadata, fresh positive
+oracle rounds, direct-route quotes in both directions, and constructor gas
+with a 20% balance buffer. The deployment console shows these checks, expires
+readiness after 60 seconds, and rechecks before opening the wallet. Passing
+does not certify the feed-to-asset mapping, router trust, a future fill or
+campaign eligibility. Missing configuration is reported as `BLOCKED`.
+
+Rebalance requests save public plan metadata before opening the wallet and use
+Web Locks to prevent concurrent submissions from tabs in the same browser.
+After a reload or uncertain wallet response, resume the original plan and
+verify its existing transaction hash. Only an explicit wallet rejection allows
+immediate retry. Releasing an expired request is never counted as verification.
+Storage or lock failures block submission; sessions and signatures are not saved.
+
+Wallet login listens for account/network/disconnect events before requesting
+accounts. Checks before and after signing reject stale login results. Sessions
+expire after 15 minutes; timeout or HTTP 401 clears the local session and disables
+wallet actions until reconnection. A switch while the transaction dialog is open
+retains any returned rebalance hash for recovery; it never triggers a resend.
+
+Local lab execution saves the returned transaction hash in the journal before
+waiting for confirmation or checking the proof. After an RPC interruption,
+select **Resume verification** in the journal and **Retry verification · no new
+trade**. Both local execution and fault-drill retries use the saved transaction,
+including while current prices are unavailable. This covers recovery after a
+hash is returned and journaled; it does not make broadcast and disk writes atomic.
+Local trade submission adds 20% gas headroom for storage-write costs that can
+change when the next block's timestamp advances after estimation.
+
+### Public testnet deployment and recovery
+
+The [operations guide](docs/bsc-operations.md) includes a non-root Docker image,
+HTTPS gateway and persistent journal volume. Public mode requires an explicit
+HTTPS origin and preserves the wallet challenge's domain binding. The local
+Anvil fixture remains restricted to loopback. No funded host, domain or chain
+deployment is provisioned by a container build.
+
+The testnet worker resumes verification of saved transaction hashes every 30
+seconds without signing or broadcasting. RPC outages keep jobs pending;
+mismatches freeze the runner. `/healthz`, `/readyz` and `/api/v1/operations`
+support external uptime alerts. A single-writer lock prevents two service
+processes from opening one journal. See the guide for crash-lock recovery,
+backups and stuck transaction handling.
+
+### Set and Earn status
+
+This implementation is a technical foundation, not a claim of campaign
+qualification. The official Set and Earn campaign runs until **November 5,
+2026 at 12:00 UTC** and awards limited physical merchandise rather than a cash
+prize. Public deployment, ERC-8004 registration, a new shortlisted-market
+listing, independent hires, and qualifying multi-day on-chain activity remain
+external launch steps. Run `npm run bsc:readiness` for the machine-readable
+checklist. Local fixtures, self-funded hires, and EVM time travel are never
+counted as campaign activity.
+
 Binance AgentGuard is the control plane that lets an AI Agent act on Binance without giving it unchecked authority: it turns a natural-language goal into a bounded Spot intent, authorizes only policy-compliant actions, independently verifies the result, and seals every outcome in a tamper-evident receipt.
 
 > **Not a kill switch:** AgentGuard grants bounded authority, verifies how that authority was used, and produces evidence another system can audit.
@@ -44,7 +174,11 @@ npm run demo:agent
 npm run judge:check
 ```
 
-The simulator never moves funds. `judge:check` validates the TypeScript, nine policy/verification tests, three Agent states, both public evidence bundles, and required Judge Console signals.
+The simulator never moves funds. `judge:check` validates the original CEX path,
+including its nine policy/verification tests, three Agent states, both public
+evidence bundles, and required Judge Console signals. The repository now has 79
+Node tests in total: the original nine plus 70 BSC contract, service,
+configuration, deployment, submission and wallet-session tests.
 
 The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.
 

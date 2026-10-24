@@ -1,25 +1,45 @@
 {
   "name": "binance-agentguard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "description": "A policy-gated Binance Agent OS application with independent verification and receipts.",
-  "engines": { "node": ">=20.18.0" },
+  "engines": {
+    "node": ">=20.18.0"
+  },
   "scripts": {
     "demo": "tsx src/demo.ts",
     "demo:agent": "tsx src/agent-demo.ts",
     "agent:live": "tsx src/ai-agent-live.ts",
-    "test": "tsx --test test/*.test.ts",
+    "test": "node --import tsx --test test/*.test.ts test/*.test.mjs",
     "typecheck": "tsc --noEmit",
     "verify:live-evidence": "tsx src/verify-live-evidence.ts",
     "verify:ai-live-evidence": "tsx src/verify-ai-live-evidence.ts",
     "verify:site": "node scripts/verify-site.mjs",
     "judge:check": "node --check scripts/codex-goal-planner.mjs && node --check site/agent-console.js && npm run typecheck && npm test && npm run demo:agent && npm run verify:live-evidence && npm run verify:ai-live-evidence && npm run verify:site",
-    "live:run": "tsx src/live-runner.ts"
+    "live:run": "tsx src/live-runner.ts",
+    "bsc:serve": "node --import tsx src/bsc/server.ts --local",
+    "bsc:testnet": "node --env-file=.env --import tsx src/bsc/server.ts --testnet",
+    "bsc:demo": "node --import tsx src/bsc/demo.ts",
+    "bsc:prepare": "node --env-file=.env --import tsx src/bsc/prepare.ts",
+    "bsc:verify-deployment": "node --env-file=.env --import tsx src/bsc/verify-deployment.ts",
+    "bsc:deploy-console": "node --env-file=.env --import tsx src/bsc/deployment-server.ts",
+    "bsc:readiness": "tsx src/bsc/readiness.ts",
+    "bsc:doctor": "node --import tsx src/bsc/doctor.ts",
+    "bsc:browser": "playwright test --config playwright.bsc.config.ts",
+    "bsc:check": "node --check site/bsc/app.js && node --check site/bsc/submission.js && node --check site/bsc/wallet-session.js && node --check site/bsc/deploy/app.js && npm run typecheck && npm test && npm run bsc:demo"
   },
   "devDependencies": {
+    "@foundry-rs/anvil": "^1.7.1",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^20.12.12",
+    "solc": "0.8.38",
     "tsx": "^4.19.4",
     "typescript": "^5.4.5"
+  },
+  "overrides": { "tmp": "0.2.7" },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.6.1",
+    "viem": "^2.57.11"
   }
 }

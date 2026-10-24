@@ -2,4 +2,10 @@ node_modules/
 dist/
 .env
 .env.*
+!.env.example
+.runtime/
+config/bsc-testnet.json
+test-results/
+playwright-report/
+deploy/bsc/runtime.env
 evidence/live/

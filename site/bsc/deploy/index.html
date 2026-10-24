@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AgentGuard · Review your vault deployment</title>
+  <link rel="icon" href="../mark.svg" type="image/svg+xml"><link rel="stylesheet" href="../style.css"><script src="./app.js" defer></script>
+</head><body>
+<main class="deployment-page">
+  <header><a class="brand" href="./"><img src="../mark.svg" width="36" height="36" alt=""><span>AgentGuard<small>WALLET DEPLOYMENT</small></span></a><button id="connect" class="dark" disabled>Connect Wallet</button></header>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <section class="overview"><div class="eyebrow">01 / REVIEW · 02 / SIGN · 03 / VERIFY</div><h1>Your vault.<br><span>Your authority.</span></h1>
+    <p class="intro">Deploy one policy-bound vault on BNB Smart Chain Testnet.<br>Review the configuration, confirm in your wallet, then verify with a separate RPC.</p>
+    <p class="mode-note" id="service-note">Connecting to deployment service…</p>
+  </section>
+  <section class="panel" aria-labelledby="preflight-title">
+    <div class="panel-heading"><div><span class="eyebrow">READ-ONLY · TWO RPC PROVIDERS</span><h2 id="preflight-title">Check before you deploy.</h2></div><span id="preflight-state" class="badge neutral">NOT CHECKED</span></div>
+    <p id="preflight-summary" class="body-copy" role="status" aria-live="polite">Checks owner test gas, dependencies, fresh oracle prices, direct routes and constructor gas. No wallet request or transaction.</p>
+    <dl id="preflight-gas"></dl>
+    <details><summary>Inspect dependency checks</summary><div id="preflight-checks"></div></details>
+    <button id="refresh-preflight" class="secondary" disabled>Check readiness</button>
+    <p class="body-copy">A passing check expires after 60 seconds. Checks run again before the wallet request. Feed-to-asset mapping, router trust and token behavior still need your review.</p>
+  </section>
+  <div class="desk">
+    <section class="panel"><div class="panel-heading"><div><span class="eyebrow">FIXED AT DEPLOYMENT</span><h2>Authority & dependencies</h2></div><span class="badge neutral">CHAIN 97</span></div>
+      <dl id="addresses"></dl><h2>Initial policy</h2><dl id="policy"></dl>
+      <details><summary>Inspect creation calldata & configuration</summary><pre id="transaction"></pre></details>
+    </section>
+    <section class="panel"><span class="eyebrow">OWNER CONFIRMATION</span><h2>Review before signing.</h2>
+      <p class="body-copy">This unaudited reference needs test BNB for deployment gas. Asset funding and token approvals are separate actions.</p>
+      <div class="review-checks">
+        <label><input id="review-addresses" type="checkbox">I checked the owner, operator, assets, router and price feeds.</label>
+        <label><input id="review-policy" type="checkbox">I reviewed the budgets and limits. This is a testnet deployment.</label>
+      </div>
+      <p class="body-copy" id="wallet-status">Connect the configured owner wallet on chain 97.</p>
+      <button id="deploy" class="accent" disabled>Review & deploy in wallet</button>
+      <p class="body-copy">If the wallet request is interrupted, check its activity and paste the transaction hash below. The page will not automatically send again.</p>
+      <label>Deployment transaction hash<input id="hash" placeholder="0x…" autocomplete="off" spellcheck="false"></label>
+      <div class="button-row"><button id="verify" class="secondary" disabled>Verify deployment</button><button id="export-proof" class="text-button" disabled>Export attestation</button></div>
+      <div id="result" class="decision" role="status" aria-live="polite"><span class="badge neutral">NOT DEPLOYED</span><h3>Waiting for configuration.</h3><p>A successful wallet popup alone is not proof of deployment.</p></div>
+      <details id="proof-details" hidden><summary>Inspect deployment checks & evidence</summary><pre id="proof"></pre></details>
+    </section>
+  </div>
+  <footer><span>AgentGuard · BSC testnet only</span><span>Deployment verification does not establish campaign eligibility.</span></footer>
+</main></body></html>

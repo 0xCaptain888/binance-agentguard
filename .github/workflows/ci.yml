@@ -33,3 +33,26 @@ jobs:
         run: npm ci
       - name: Run judge checks
         run: npm run judge:check
+      - name: Run BSC contract and service checks
+        run: npm run bsc:check
+      - name: Install Chromium for BSC browser checks
+        if: matrix.node == '22.x'
+        run: npx playwright install --with-deps chromium
+      - name: Run BSC desktop and mobile browser checks
+        if: matrix.node == '22.x'
+        run: npm run bsc:browser
+      - name: Preserve browser reports and screenshots
+        if: always() && matrix.node == '22.x'
+        uses: actions/upload-artifact@v6
+        with:
+          name: bsc-browser-results
+          path: |
+            test-results/
+            playwright-report/
+            .runtime/bsc-desktop-proof.png
+            .runtime/bsc-mobile.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+      - name: Build public testnet container
+        if: matrix.node == '22.x'
+        run: docker build -f deploy/bsc/Dockerfile -t agentguard-bsc-testnet:ci .

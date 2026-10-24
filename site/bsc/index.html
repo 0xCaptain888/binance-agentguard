@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="A bounded rebalancing agent. Preview the trade, enforce policy on-chain, verify the result.">
+  <title>AgentGuard · Rebalancing, within bounds</title>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+  <script src="./app.js" type="module"></script>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <a class="brand" href="./"><img src="./mark.svg" alt="" width="38" height="38"><span>AgentGuard<small>REBALANCING AGENT</small></span></a>
+    <nav aria-label="Main navigation"><a class="selected" href="#overview">Overview <span>01</span></a><a href="#workspace">Execution desk <span>02</span></a><a href="#activity">Proof journal <span>03</span></a><a href="#readiness">Launch checklist <span>04</span></a></nav>
+    <div class="sidebar-foot"><span class="status-dot"></span> Authority stays bounded.<p>The agent can rebalance.<br>Only you can withdraw.</p><a href="https://github.com/0xCaptain888/binance-agentguard" target="_blank" rel="noopener noreferrer">View source ↗</a><small>v0.4.0 · Testnet reference</small></div>
+  </aside>
+  <main>
+    <header><div class="breadcrumb">Your workspace <span>/</span> Portfolio control</div><div class="header-actions"><span id="network" class="badge neutral">Connecting to service</span><button id="connect" class="dark">Connect Wallet</button></div></header>
+    <div id="notice" role="status" aria-live="polite" hidden></div>
+    <section id="overview" class="overview">
+      <div class="eyebrow">LESS DRIFT. MORE CONTROL.</div>
+      <div class="title-row"><div><h1>Rebalancing,<br><span>within bounds.</span></h1><p class="intro">A focused agent for a balanced portfolio.<br>Every action has a limit. Every result has a proof.</p></div><div class="state-card"><span class="eyebrow">RUNNER STATUS</span><strong id="runner-state">Checking…</strong><span id="runner-detail">Reading vault state</span></div></div>
+      <div id="mode-note" class="mode-note">This view requires the AgentGuard service. Start it locally with <code>npm run bsc:serve</code>.</div>
+      <div class="stats"><article><span>Portfolio value</span><strong id="value">—</strong><small>Oracle marked · USD</small></article><article><span>Allocation drift</span><strong id="drift">—</strong><small>Distance from your target</small></article><article><span>Today's budget left</span><strong id="budget">—</strong><small id="budget-cap">Both directions share one cap</small></article></div>
+    </section>
+    <section id="workspace" class="desk">
+      <article class="panel allocation"><div class="panel-heading"><div><div class="eyebrow">YOUR PORTFOLIO</div><h2>Balance at a glance</h2></div><span id="snapshot" class="mono small">Block —</span></div>
+        <div class="asset-heading"><span id="asset0">Asset A</span><strong id="share0">—</strong></div><progress id="allocation-bar" value="0" max="100" aria-label="Asset A allocation"></progress><div class="asset-heading muted"><span id="asset1">Asset B</span><span id="share1">—</span></div>
+        <div class="target"><span>Target allocation</span><strong id="target">—</strong></div>
+        <div class="policy-list"><div><span>Per-action limit</span><strong id="action-cap">—</strong></div><div><span>Maximum slippage</span><strong id="slippage">—</strong></div><div><span>Cooldown</span><strong id="cooldown">—</strong></div><div><span>Oracle maximum age</span><strong id="oracle-age">—</strong></div><div><span>Execution nonce</span><strong id="nonce">—</strong></div></div>
+        <div class="vault-line"><span>Vault</span><code id="vault">—</code></div>
+        <div class="button-row"><button id="pause" class="secondary" disabled>Pause vault</button><button id="refresh" class="text-button">Refresh state ↻</button><button id="recover" class="secondary" hidden>Acknowledge incident</button></div>
+        <details id="funding"><summary>Owner controls · fund or withdraw</summary><p>Use exact amounts. Approval and deposit are separate wallet transactions. Withdrawals remain available when paused or runner-frozen.</p><div class="fund-fields"><label>Asset<select id="fund-asset"><option value="0">Asset A</option><option value="1">Asset B</option></select></label><label>Amount<input id="fund-amount" inputmode="decimal" placeholder="0.00" autocomplete="off"></label></div><div class="button-row"><button class="secondary funding-action" data-action="approve">Approve exact</button><button class="secondary funding-action" data-action="deposit">Deposit</button><button class="secondary funding-action" data-action="withdraw">Withdraw</button></div></details>
+      </article>
+      <article class="panel execution"><div class="panel-heading"><div><div class="eyebrow">EXECUTION DESK</div><h2>Preview. Then prove.</h2></div><span class="step-number">↗</span></div>
+        <p class="body-copy">The planner proposes one trade. Your vault enforces the budget, oracle floor and allocation improvement.</p>
+        <div id="decision" class="decision"><span class="badge neutral">AWAITING PLAN</span><h3>Know what will happen<br>before it happens.</h3><p>Read current balances and get a bounded proposal.</p></div>
+        <div id="plan-details" hidden><dl id="plan-facts"></dl><details><summary>Inspect unsigned calldata</summary><pre id="calldata"></pre></details></div>
+        <div class="desk-actions"><button id="plan" class="dark" disabled>Preview rebalance <span>→</span></button><button id="execute" class="accent" hidden>Execute local trade</button></div>
+        <div id="verify-controls" hidden><label>Transaction hash<input id="transaction-hash" class="mono" placeholder="0x…" autocomplete="off"></label><button id="verify" class="secondary">Verify with independent RPC</button></div>
+        <div id="submission-recovery" class="decision" hidden aria-live="polite"><span class="badge warn">WALLET REQUEST SAVED</span><h3>Continue your previous trade.</h3><p id="submission-detail"></p><div class="button-row"><button id="resume-submission" class="secondary">Resume verification</button><button id="release-submission" class="text-button" hidden>Release expired request</button></div></div>
+        <div id="local-tools" hidden><div class="local-label">LOCAL EVM LAB · NO REAL FUNDS</div><div class="button-row"><button id="judge-run" class="accent">Run full safety test</button><button id="oracle-outage" class="secondary">Test oracle outage</button><button id="reset" class="text-button">Reset lab</button></div><p>Executes a real local swap, checks owner pause, then rejects an unrelated transaction. Test oracle outage separately to inspect the exit controls. Reset lab restores prices and balances. Mock assets only.</p></div>
+      </article>
+    </section>
+    <section id="activity" class="panel activity"><div class="panel-heading"><div><div class="eyebrow">INDEPENDENT VERIFICATION</div><h2>The proof journal</h2></div><button id="export" class="secondary" disabled>Export receipts ↓</button></div><p class="body-copy">Calldata, contract events and token transfers must agree. Failed proofs freeze the runner; an on-chain pause still requires the owner.</p><div id="receipts" class="empty">No executions yet. Your next result will appear here.</div></section>
+    <section id="readiness" class="readiness"><div><div class="eyebrow">BUILT HONESTLY</div><h2>Local proof.<br>Public launch next.</h2><p>Local test results do not count as BSC activity, marketplace hires or campaign qualification.</p><details><summary>Prepare a wallet deployment</summary><p>Run <code>npm run bsc:doctor</code> to list missing public configuration. Then run <code>npm run bsc:doctor -- --online</code> to check two independent RPCs, dependencies, price feeds, routes and test gas.</p><p>Start <code>npm run bsc:deploy-console -- config/bsc-testnet.json</code> and open its printed URL. Review the readiness checks before confirming deployment in your wallet. No private key is needed.</p></details></div><div class="checklist"><div><span>Local vault & independent receipt checks</span><span id="local-ready" class="badge neutral">CHECKING</span></div><div><span>Public BSC deployment & ERC-8004 registration</span><span class="badge neutral">PENDING</span></div><div><span>Shortlisted marketplace listing & live service</span><span class="badge neutral">PENDING</span></div><div><span>Independent users & qualifying activity</span><span class="badge neutral">PENDING</span></div></div></section>
+    <footer><span>AgentGuard · Built for bounded authority.</span><span>Unaudited reference · Standard ERC-20 assets only</span></footer>
+  </main>
+</div>
+</body></html>

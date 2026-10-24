@@ -1,0 +1,12 @@
+{$BSC_PUBLIC_ORIGIN} {
+  encode gzip
+  header Strict-Transport-Security "max-age=31536000"
+  request_body {
+    max_size 16KB
+  }
+  reverse_proxy agentguard:43188 {
+    header_up Host {http.request.host}
+    header_up -X-Forwarded-For
+    header_up -X-Forwarded-Host
+  }
+}

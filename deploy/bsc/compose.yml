@@ -1,0 +1,34 @@
+services:
+  agentguard:
+    build:
+      context: ../..
+      dockerfile: deploy/bsc/Dockerfile
+    env_file: runtime.env
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - journal:/data
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    stop_grace_period: 60s
+    networks: [backend]
+  gateway:
+    image: caddy:2-alpine
+    env_file: runtime.env
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - caddy-config:/config
+    networks: [backend]
+    depends_on: [agentguard]
+volumes:
+  journal:
+  certificates:
+  caddy-config:
+networks:
+  backend:
