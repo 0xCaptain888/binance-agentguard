@@ -193,3 +193,22 @@ test("refresh recovery binds the saved nonce, exact call, sender, destination an
   await assert.rejects(() => verifyControlledRefresh(f.client, override({ getTransactionReceipt: async () => { throw new Error("RPC down"); } }), proof, hash, 0, nonce), /RPC down/);
   await assert.rejects(() => verifyControlledRefresh(f.client, f.client, proof, hash, 0, -1));
 });
+test("refresh gas covers a timestamp change between estimation and mining", async () => {
+  const checkpoint = await f.rpc("evm_snapshot");
+  try {
+    const deployment = await f.deploy(); await f.rpc("evm_mine");
+    const proof = await verifyControlledEnvironment(f.client, f.client, f.owner, deployment.hash);
+    const prepared = await prepareControlledRefresh(f.client, f.client, proof);
+    const tx = prepared.transactions[0];
+    const estimate = await f.client.estimateGas({ account: f.owner, to: tx.to, data: tx.data, blockTag: "latest" });
+    assert.ok(BigInt(tx.gas) >= (estimate * 120n + 99n) / 100n);
+    const block = await f.client.getBlock();
+    await f.rpc("evm_setNextBlockTimestamp", [Number(block.timestamp + 2n)]);
+    const hash = await f.wallet.sendTransaction({ account: f.owner, to: tx.to, data: tx.data, gas: BigInt(tx.gas) });
+    assert.equal((await f.wait(hash)).status, "success");
+    const round = await f.client.readContract({ address: tx.to, abi: f.artifacts.ControlledFeed.abi, functionName: "latestRoundData" }) as bigint[];
+    assert.equal(round[3], block.timestamp + 2n);
+    await f.rpc("evm_setNextBlockTimestamp", [Number(block.timestamp + 4n)]);
+    await f.write(tx.to, f.artifacts.ControlledFeed.abi, "refresh");
+  } finally { await f.rpc("evm_revert", [checkpoint]); }
+});

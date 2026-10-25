@@ -46,7 +46,9 @@ export async function controlledFixture() {
       return { hash, receipt, address: receipt.contractAddress };
     };
     const write = async (address: Address, abi: Abi, functionName: string, args: readonly unknown[] = [], account = owner) => {
-      const hash = await wallet.writeContract({ address, abi, functionName, args, account });
+      // A write mined at a new timestamp can cost more than the latest-block estimate.
+      const estimate = await client.estimateContractGas({ address, abi, functionName, args, account });
+      const hash = await wallet.writeContract({ address, abi, functionName, args, account, gas: (estimate * 120n + 99n) / 100n });
       if ((await wait(hash)).status !== "success") throw new Error("Test transaction reverted");
       return hash;
     };

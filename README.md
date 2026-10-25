@@ -48,9 +48,12 @@ desktop execution/freeze/reset, the mobile wallet entry and horizontal
 layout, owner controls during an oracle outage, wallet deployment safeguards,
 rebalance submission recovery after reload or explicit wallet rejection, and
 wallet changes during login/submission plus session timeout and HTTP 401 recovery.
-All 18 browser cases passed in [Linux CI on October 25, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40144056531),
-alongside all 90 Node tests on Node 20.18 and Node 22 and the public-testnet Docker
-build. Coverage includes owner-reviewed ERC-8004 registration, proof inspection,
+All 51 browser cases passed in the Node 22 job of
+[Linux CI on October 26, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40227593910),
+alongside 126 Node tests and the public-testnet Docker build in that job.
+That run's Node 20 job failed on a timestamp-sensitive feed-refresh gas estimate;
+the current code adds a 20% gas buffer and a timestamp-boundary regression.
+Coverage includes owner-reviewed ERC-8004 registration, proof inspection,
 interrupted wallet recovery and unavailable browser storage. The local EVM avoids
 the console port, and browser startup waits for the HTTP health endpoint.
 Wallet deployment/session cases use wallet and RPC stubs; the local trade cases
@@ -63,14 +66,24 @@ npm run bsc:browser
 ```
 
 Local regression on October 26, 2026 (UTC+8): `npm run bsc:check` passed
-type checking, all 126 Node tests and the local VERIFIED/BLOCKED/FROZEN contract
-demonstration; `npm run verify:site` passed all 29 required signals. The new
-controlled-setup file contains 27 browser cases, including nonce recovery and
-wallet disconnect races. Test discovery succeeds, but these cases have **not**
-been verified in a browser: Chromium cannot register its Mach port under the
-local macOS sandbox. The earlier linked CI run does not cover these local changes.
+type checking, all 129 Node tests and the local VERIFIED/BLOCKED/FROZEN contract
+demonstration. The controlled-setup file contains 27 browser cases, including
+nonce recovery and wallet disconnect races, included in the 51 passing CI cases.
+The fork relay tests cover write rejection, bounded retries and safe failures.
+`npm run verify:site` also passed all 29 required signals. Local macOS
+Chromium still cannot register its Mach port under the sandbox; Ubuntu CI
+provides the real-browser regression path.
 
 Browser screenshots are test artifacts, not campaign evidence.
+
+To exercise copied mainnet PancakeSwap liquidity and Chainlink rounds without
+user funds, run `npm run bsc:fork`. The isolated chain-31337 simulation checks
+actual router execution, bounded vault rebalance, receipt verification, cooldown,
+pause and zero remaining router allowance. It passed locally on October 26,
+2026 (UTC+8), at source block 129769305. A read-only relay prevents any mainnet
+signing or broadcast. This is **fork simulation**, not a live mainnet trade or
+campaign proof. See the [reproduction guide](docs/bsc-mainnet-fork.md) and the
+manual [Ubuntu fork workflow](.github/workflows/bsc-fork.yml).
 
 The BSC testnet path is wallet-signed and keyless on the server. It requires a
 reviewed vault deployment plus two independent HTTPS RPC providers:

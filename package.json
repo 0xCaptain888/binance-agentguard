@@ -21,6 +21,7 @@
     "bsc:serve": "node --import tsx src/bsc/server.ts --local",
     "bsc:testnet": "node --env-file=.env --import tsx src/bsc/server.ts --testnet",
     "bsc:demo": "node --import tsx src/bsc/demo.ts",
+    "bsc:fork": "node --env-file-if-exists=.env --import tsx src/bsc/mainnet-fork.ts",
     "bsc:prepare": "node --env-file=.env --import tsx src/bsc/prepare.ts",
     "bsc:verify-deployment": "node --env-file=.env --import tsx src/bsc/verify-deployment.ts",
     "bsc:verify-registration": "node --env-file=.env --import tsx src/bsc/verify-registration.ts",

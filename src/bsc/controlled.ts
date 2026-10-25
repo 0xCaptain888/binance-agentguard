@@ -208,7 +208,9 @@ export async function prepareControlledRefresh(client: PublicClient, verifier: P
       return { gas };
     }));
     if (json(reads[0]) !== json(reads[1])) throw new Error("Independent refresh reads disagree");
-    transactions.push({ from: proof.owner, to: feed, data, value: "0x0", chainId: "0x61" });
+    // updatedAt can change between estimation and mining, increasing SSTORE cost.
+    const gas = (reads[0].gas * 120n + 99n) / 100n;
+    transactions.push({ from: proof.owner, to: feed, data, value: "0x0", chainId: "0x61", gas: `0x${gas.toString(16)}` });
   }
   if (!(await Promise.all([client, verifier].map(rpc => rpc.getBlock({ blockNumber: block.number! })))).every(b => b.hash === block.hash))
     throw new Error("Canonical anchor changed");

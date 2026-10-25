@@ -1,0 +1,37 @@
+name: BSC mainnet fork simulation
+
+on:
+  workflow_dispatch:
+    inputs:
+      block:
+        description: Optional historical mainnet block (requires available archive state)
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fork:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22.x"
+          cache: npm
+      - run: npm ci
+      - name: Execute only on isolated chain 31337
+        run: npm run bsc:fork
+        env:
+          BSC_FORK_BLOCK: ${{ inputs.block }}
+          BSC_MAINNET_FORK_RPC_URL: ${{ secrets.BSC_MAINNET_FORK_RPC_URL }}
+      - name: Preserve simulation report, including failure state
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: bsc-mainnet-fork-simulation
+          path: .runtime/bsc-mainnet-fork.json
+          include-hidden-files: true
+          if-no-files-found: error
