@@ -1,23 +1,8 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, rename, unlink, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
 import { testnetClients } from "./deployment.js";
 import { probeDependencies } from "./dependency-probe.js";
+import { failedDependencyReport, saveDependencyReport } from "./dependency-report.js";
 import { dependencySummary, readDependencySummary } from "./dependency-status.js";
 import { json } from "./rebalancer.js";
-
-export const failedDependencyReport = () => ({ schemaVersion: 2, state: "RPC_UNAVAILABLE", checkedAt: new Date().toISOString(),
-  campaignProof: false, financialTransactionCreated: false, deploymentReady: false });
-
-// An interrupted write must never leave a partially readable report.
-export async function saveDependencyReport(path: string, report: unknown) {
-  await mkdir(dirname(path), { recursive: true });
-  const temporary = `${path}.${randomUUID()}.tmp`;
-  try {
-    await writeFile(temporary, json(report) + "\n", { mode: 0o600, flag: "wx" });
-    await rename(temporary, path);
-  } finally { await unlink(temporary).catch(() => {}); }
-}
 
 export async function runDependencyProbe(rpcUrl: string | undefined, verifierRpcUrl: string | undefined, signal: AbortSignal) {
   signal.throwIfAborted();

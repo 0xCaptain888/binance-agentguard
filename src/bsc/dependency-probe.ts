@@ -1,8 +1,8 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { loadEnvFile } from "node:process";
 import { pathToFileURL } from "node:url";
 import { BaseError, ContractFunctionRevertedError, getAddress, keccak256, parseAbi, zeroAddress, type Address, type PublicClient } from "viem";
 import { testnetClients } from "./deployment.js";
+import { failedDependencyReport, saveDependencyReport } from "./dependency-report.js";
 import { json } from "./rebalancer.js";
 
 // Official candidates, not a token-to-feed trust registry or deployment approval.
@@ -10,7 +10,8 @@ export const dependencySources = {
   router: "https://github.com/pancakeswap/pancake-developer/blob/e4778927f6e69ae6c1d90de08265c1d405f93703/docs/pages/contracts/v2/addresses.md",
   wrappedBNB: "https://github.com/pancakeswap/pancake-swap-sdk/blob/master/src/entities/token.ts",
   feeds: "https://docs.chain.link/data-feeds/price-feeds/addresses?network=bnb-chain",
-  tokens: "https://registry.npmjs.org/@pancakeswap/tokens/-/tokens-0.10.0.tgz"
+  tokens: "https://registry.npmjs.org/@pancakeswap/tokens/-/tokens-0.10.0.tgz",
+  linkToken: "https://docs.chain.link/resources/link-token-contracts#bnb-chain-testnet"
 };
 export type ProbeInventory = {
   router: Address; factory: Address; wrappedNative: Address;
@@ -38,7 +39,8 @@ export const dependencyInventory: ProbeInventory = {
     { asset: "USDT", address: "0x0fB5D7c73FA349A90392f873a4FA1eCf6a3d0a96", feed: "USDT", decimals: 18 },
     { asset: "USDC", address: "0xCA8eB2dec4Fe3a5abbFDc017dE48E461A936623D", feed: "USDC", decimals: 18 },
     { asset: "HBTC", address: "0x3Fb6a6C06c7486BD194BB99a078B89B9ECaF4c82", feed: "BTC", decimals: 18 },
-    { asset: "WBTC", address: "0xfC8bFbe9644e1BC836b8821660593e7de711e564", feed: "BTC", decimals: 8 }
+    { asset: "WBTC", address: "0xfC8bFbe9644e1BC836b8821660593e7de711e564", feed: "BTC", decimals: 8 },
+    { asset: "LINK", address: "0x84b9B910527Ad5C03A9Ca831909E21e236EA7b06", feed: "LINK", decimals: 18 }
   ]
 };
 export const dependencyPolicy = { maxActionUsd: 10n * 10n ** 18n, maxSlippageBps: 100, maxOracleAgeSeconds: 3600n };
@@ -171,21 +173,28 @@ export async function probeDependencies(client: PublicClient, verifier: PublicCl
     note: "Read-only candidate discovery. Every unordered token combination is evaluated; existing direct pairs are quoted in both directions when prerequisites are readable. Candidate feed mappings are unreviewed. Full deployment preflight and an explicitly chosen operator are still required." };
 }
 async function main() {
-  await mkdir(".runtime", { recursive: true });
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timer = setTimeout(abort, 120000);
+  process.once("SIGINT", abort);
+  process.once("SIGTERM", abort);
   try {
     try { loadEnvFile(".env"); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
-    const { client, verifier } = await testnetClients(process.env.BSC_TESTNET_RPC_URL, process.env.BSC_VERIFIER_RPC_URL);
+    const { client, verifier } = await testnetClients(process.env.BSC_TESTNET_RPC_URL, process.env.BSC_VERIFIER_RPC_URL, controller.signal);
     const result = await probeDependencies(client, verifier);
-    await writeFile(".runtime/bsc-dependencies.json", json(result) + "\n", { mode: 0o600 });
+    controller.signal.throwIfAborted();
+    await saveDependencyReport(".runtime/bsc-dependencies.json", result);
     console.log(json(result));
     if (result.state !== "CANDIDATES_INSPECTED") process.exitCode = 2;
   } catch {
     // A failed refresh replaces an old successful snapshot, rather than leaving it looking current.
-    const failed = { schemaVersion: 2, state: "RPC_UNAVAILABLE", checkedAt: new Date().toISOString(),
-      campaignProof: false, financialTransactionCreated: false, deploymentReady: false };
-    await writeFile(".runtime/bsc-dependencies.json", json(failed) + "\n", { mode: 0o600 });
+    await saveDependencyReport(".runtime/bsc-dependencies.json", failedDependencyReport());
     console.error("Dependency probe unavailable. Check the two configured chain-97 RPCs. No endpoint secrets were printed and no transaction was sent.");
     process.exitCode = 1;
+  } finally {
+    clearTimeout(timer);
+    process.removeListener("SIGINT", abort);
+    process.removeListener("SIGTERM", abort);
   }
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main().catch(() => {

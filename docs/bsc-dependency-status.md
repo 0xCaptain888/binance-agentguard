@@ -23,6 +23,21 @@ invalid, eleven direct pairs were absent and eleven quote directions reverted
 or fell below the floor. This follow-up is also a historical observation,
 not a current deployment approval; no transaction was created.
 
+An additional read-only investigation at **2026-10-25 01:27:16 UTC**,
+block **138757400**, added the LINK test token from Chainlink's official
+directory. Both providers agreed on all eight tokens and 28 combinations,
+with zero compatible candidates. LINK had contract code and the documented
+18 decimals. WBNB/LINK existed and both feeds were fresh, but a $10 LINK input
+returned only **0.000108940433054964 WBNB**, below the
+**0.013361274502553002 WBNB** protected floor. BUSD/LINK also failed; LINK's
+other five direct pairs were absent. This historical snapshot does not approve
+the mapping or any deployment.
+
+The updated terminal command was then exercised at **2026-10-25 01:30:38 UTC**,
+block **138757855**. Both providers agreed; all reads completed. The saved
+report contained eight tokens, 28 combinations, 12 existing direct pairs and
+zero compatible candidates.
+
 ## Sources and chain reads
 
 - PancakeSwap's [official v2 address table](https://github.com/pancakeswap/pancake-developer/blob/e4778927f6e69ae6c1d90de08265c1d405f93703/docs/pages/contracts/v2/addresses.md)
@@ -35,6 +50,10 @@ not a current deployment approval; no transaction was created.
   identified by the [official token SDK guide](https://github.com/pancakeswap/pancake-developer/blob/e4778927f6e69ae6c1d90de08265c1d405f93703/docs/pages/sdks/tokens.md).
   These are test tokens; their symbols do not establish economic equivalence to
   mainnet assets or sufficient pool liquidity.
+- The additional LINK candidate
+  `0x84b9B910527Ad5C03A9Ca831909E21e236EA7b06` and its 18 decimals come
+  from [Chainlink's official LINK token directory](https://docs.chain.link/resources/link-token-contracts#bnb-chain-testnet).
+  A published token address does not attest to pool pricing or liquidity.
 - Feed candidates come from the **BNB Chain Testnet** section of
   [Chainlink's official address directory](https://docs.chain.link/data-feeds/price-feeds/addresses?network=bnb-chain).
   Positive answers and matching descriptions are compatibility observations,
@@ -42,8 +61,8 @@ not a current deployment approval; no transaction was created.
 
 ## Candidate results
 
-The expanded scan inspected seven tokens (WBNB, CAKE, BUSD, USDT, USDC, HBTC,
-WBTC), eight feed candidates and all 21 unordered token combinations at a
+The initial expanded scan inspected seven tokens (WBNB, CAKE, BUSD, USDT, USDC,
+HBTC, WBTC), eight feed candidates and all 21 unordered token combinations at a
 $10 action limit, 1% oracle floor and 3,600-second maximum oracle age.
 Ten direct pairs existed and yielded 20 quote directions. Eleven pairs did
 not exist. All reads completed; both providers agreed. No candidate passed
@@ -62,7 +81,7 @@ A fresh LINK feed alone does not establish a reviewed test token and direct
 pair. Other existing non-WBNB pairs failed at least one quote direction or
 feed freshness. Eleven missing pairs are chain observations, not RPC failures.
 The search covers only the documented inventory, not every possible testnet
-asset or route.
+asset or route. The current inventory adds LINK and checks all 28 combinations.
 
 ## Repeat the read-only investigation
 
@@ -81,6 +100,13 @@ inspection success means the reads agreed; **it never means deployment-ready**.
 RPC failures, incomplete reads, outdated anchors and disagreements produce a
 nonzero exit status. A failed attempt replaces the prior saved report rather
 than leaving an old successful result in place.
+The terminal command aborts RPC work after two minutes, with a 10-second
+per-request timeout and no retries. SIGINT/SIGTERM request cancellation and
+save a failed report before exiting. Terminal and web scans share atomic
+replacement: readers receive a complete report, existing permissive file modes
+are replaced with `0600`, and temporary files are removed on save failure.
+Abrupt termination such as SIGKILL cannot run cleanup; saved snapshots still
+expire after 120 seconds.
 
 The local console includes **What is blocking deployment?**. Its
 `GET /api/v1/dependencies` response contains only known states, timestamps,
