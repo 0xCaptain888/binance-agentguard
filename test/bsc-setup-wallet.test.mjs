@@ -12,7 +12,7 @@ function harness() {
       listeners.get(event).add(listener);
     },
     removeListener(event, listener) { listeners.get(event)?.delete(listener); },
-    emit(event) { for (const listener of [...listeners.get(event) || []]) listener(); },
+    emit(event, ...args) { for (const listener of [...listeners.get(event) || []]) listener(...args); },
     async request({ method }) {
       if (hooks[method]) return hooks[method]();
       if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [owner];
@@ -57,6 +57,15 @@ test('setup events during the initial prompt cannot restore a stale wallet', asy
     await assert.rejects(attempt, /connection changed/);
     assert.equal(h.wallet.account(), undefined); assert.equal(h.count(), 0);
   }
+});
+
+test('setup ignores duplicate current-account and current-chain events', async () => {
+  const h = harness(), context = await h.wallet.connect(h.provider);
+  h.provider.emit('accountsChanged', [owner]);
+  h.provider.emit('chainChanged', '0x61');
+  assert.equal(await h.wallet.check(context), context);
+  assert.equal(h.wallet.account(), owner);
+  assert.equal(h.count(), 3);
 });
 
 test('setup events during either asynchronous pre-send check invalidate the captured connection', async () => {

@@ -75,11 +75,31 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
     disconnect: () => clear(current),
     async connect(provider) {
       clear(current);
-      const context = { provider, listeners: [], account: undefined };
+      const context = { provider, listeners: [], account: undefined, pendingEvents: [] };
       current = context;
       try {
+        const onEvent = (event, args) => {
+          if (event === 'disconnect') {
+            clear(context, changed);
+            return;
+          }
+          // OKX can announce the already-active state while its request
+          // prompt is resolving. Defer those events until the account is
+          // known so identical state is not treated as a change.
+          if (!context.account) {
+            context.pendingEvents.push([event, args]);
+            return;
+          }
+          if (event === 'accountsChanged') {
+            const next = args[0];
+            if (!Array.isArray(next) || typeof next[0] !== 'string'
+              || next[0].toLowerCase() !== context.account.toLowerCase()) clear(context, changed);
+          } else if (event === 'chainChanged' && chainIdNumber(args[0]) !== 97) {
+            clear(context, changed);
+          }
+        };
         for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) {
-          const listener = () => clear(context, changed);
+          const listener = (...args) => onEvent(event, args);
           context.listeners.push([event, listener]); provider.on?.(event, listener);
         }
         const accounts = await provider.request({ method: 'eth_requestAccounts' });
@@ -87,6 +107,8 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
         if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || !/^0x[0-9a-f]{40}$/i.test(accounts[0]))
           throw new Error('No usable wallet account returned.');
         context.account = accounts[0];
+        for (const [event, args] of context.pendingEvents.splice(0)) onEvent(event, args);
+        capture(context);
         await check(context);
         onChange();
         return context;
@@ -144,17 +166,36 @@ export function walletSession({ request, onChange = () => {}, clock = Date.now,
   }
   async function connect(provider) {
     clear(current);
-    const context = { provider, listeners: [], account: undefined, token: undefined, expires: 0 };
+    const context = { provider, listeners: [], account: undefined, token: undefined, expires: 0, pendingEvents: [] };
     current = context;
     try {
+      const onEvent = (event, args) => {
+        if (event === 'disconnect') {
+          clear(context, changed);
+          return;
+        }
+        if (!context.account) {
+          context.pendingEvents.push([event, args]);
+          return;
+        }
+        if (event === 'accountsChanged') {
+          const next = args[0];
+          if (!Array.isArray(next) || typeof next[0] !== 'string'
+            || next[0].toLowerCase() !== context.account.toLowerCase()) clear(context, changed);
+        } else if (event === 'chainChanged' && chainIdNumber(args[0]) !== 97) {
+          clear(context, changed);
+        }
+      };
       for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) {
-        const listener = () => clear(context, changed);
+        const listener = (...args) => onEvent(event, args);
         context.listeners.push([event, listener]); provider.on?.(event, listener);
       }
       const accounts = await provider.request({ method: 'eth_requestAccounts' });
       assert(context, false);
       if (!/^0x[0-9a-f]{40}$/i.test(accounts[0])) throw new Error('No usable wallet account returned.');
       context.account = accounts[0];
+      for (const [event, args] of context.pendingEvents.splice(0)) onEvent(event, args);
+      assert(context, false);
       await check(context, false);
       const challenge = await request('/auth/challenge', { address: context.account }, null);
       assert(context, false);

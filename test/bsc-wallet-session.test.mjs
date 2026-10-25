@@ -12,7 +12,7 @@ function harness() {
   const provider = {
     on(event, listener) { const set = listeners.get(event) || new Set(); set.add(listener); listeners.set(event, set); },
     removeListener(event, listener) { listeners.get(event)?.delete(listener); },
-    emit(event) { for (const listener of [...listeners.get(event) || []]) listener(); },
+    emit(event, ...args) { for (const listener of [...listeners.get(event) || []]) listener(...args); },
     async request({ method }) {
       calls.push(method);
       if (hooks[method]) return hooks[method]();
@@ -73,6 +73,15 @@ test('events during the initial account prompt also cancel the attempt', async (
   h.provider.emit('accountsChanged'); gate.resolve([account]);
   await assert.rejects(pending, /session changed/);
   assert.equal(h.calls.includes('personal_sign'), false); assert.equal(h.listenerCount(), 0);
+});
+
+test('wallet sessions ignore duplicate current-account and current-chain events', async () => {
+  const h = harness(), context = await h.wallet.connect(h.provider);
+  h.provider.emit('accountsChanged', [account]);
+  h.provider.emit('chainChanged', '0x61');
+  assert.equal(await h.wallet.check(context), context);
+  assert.equal(h.wallet.account(), account);
+  assert.equal(h.listenerCount(), 3);
 });
 
 test('silent account and chain changes are rejected without relying on provider events', async () => {

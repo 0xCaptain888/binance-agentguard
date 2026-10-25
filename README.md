@@ -129,8 +129,11 @@ When multiple wallet extensions are installed, only the OKX provider is selected
 Open the local URL in a browser with the OKX extension enabled and select BNB Smart Chain
 Testnet (97). The connection guard accepts the standard `0x61` chain ID plus
 numeric and decimal-string `97` responses emitted by some OKX bridge versions,
-while rejecting malformed or unsafe values. The isolated local lab needs no
-wallet.
+while rejecting malformed or unsafe values. During OKX connection prompts the
+guard also ignores repeated `accountsChanged`/`chainChanged` events that carry
+the already-active account and BSC Testnet chain; a real account switch, wrong
+network or disconnect still invalidates the session. The isolated local lab
+needs no wallet.
 
 ```bash
 cp config/bsc-testnet.example.json config/bsc-testnet.json
