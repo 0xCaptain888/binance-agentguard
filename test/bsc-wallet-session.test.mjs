@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { walletSession } from '../site/bsc/wallet-session.js';
+import { chainIdNumber, walletSession } from '../site/bsc/wallet-session.js';
 import { submissionGuard } from '../site/bsc/submission.js';
 
 const account = `0x${'22'.repeat(20)}`, other = `0x${'33'.repeat(20)}`, hash = `0x${'44'.repeat(32)}`;
@@ -76,11 +76,21 @@ test('events during the initial account prompt also cancel the attempt', async (
 });
 
 test('silent account and chain changes are rejected without relying on provider events', async () => {
-  for (const [method, response] of [['eth_accounts', [other]], ['eth_chainId', '0x38']]) {
+  for (const [method, response] of [['eth_accounts', [other]], ['eth_chainId', '0x38'], ['eth_chainId', 98], ['eth_chainId', '98']]) {
     const h = harness();
     h.hooks.personal_sign = () => { h.hooks[method] = () => response; return '0xabcd'; };
     await assert.rejects(() => h.wallet.connect(h.provider), /Reconnect|reconnect/);
     assert.equal(h.wallet.token(), undefined); assert.equal(h.listenerCount(), 0);
+  }
+});
+
+test('wallet sessions accept decimal and numeric BSC testnet chain ids', async () => {
+  for (const value of ['97', 97, 97n]) {
+    const h = harness();
+    h.hooks.eth_chainId = () => value;
+    const context = await h.wallet.connect(h.provider);
+    assert.equal(await h.wallet.check(context), context);
+    assert.equal(h.wallet.account(), account);
   }
 });
 

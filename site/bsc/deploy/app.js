@@ -1,4 +1,4 @@
-import { selectOKXProvider } from '../wallet-session.js';
+import { chainIdNumber, selectOKXProvider } from '../wallet-session.js';
 const $ = id => document.getElementById(id);
 let prepared, provider, account, attempted = false, busy = false, proof, timer, preflight, preflightExpires = 0;
 let registration, registrationAttempted = false, registrationProof;
@@ -93,7 +93,7 @@ $('refresh-preflight').addEventListener('click', () => work(checkReadiness));
 setInterval(update, 1000);
 async function assertWallet() {
   if (!provider || !account || account.toLowerCase() !== prepared.config.owner.toLowerCase()) throw new Error('Connect the configured owner wallet.');
-  if (Number(BigInt(await provider.request({ method: 'eth_chainId' }))) !== 97) throw new Error('Switch your wallet to BNB Smart Chain Testnet (97), then reconnect.');
+  if (chainIdNumber(await provider.request({ method: 'eth_chainId' })) !== 97) throw new Error('Switch your wallet to BNB Smart Chain Testnet (97), then reconnect.');
   const accounts = await provider.request({ method: 'eth_accounts' });
   if (accounts[0]?.toLowerCase() !== account.toLowerCase()) throw new Error('Wallet account changed. Reconnect.');
 }

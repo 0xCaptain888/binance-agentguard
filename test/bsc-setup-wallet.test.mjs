@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { testnetWalletConnection } from '../site/bsc/wallet-session.js';
+import { chainIdNumber, testnetWalletConnection } from '../site/bsc/wallet-session.js';
 
 const owner = `0x${'11'.repeat(20)}`, other = `0x${'22'.repeat(20)}`;
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
@@ -33,6 +33,21 @@ test('setup connection validates chain/account and removes all listeners on deli
   await assert.rejects(() => h.wallet.check(context), /connection changed/);
 });
 
+test('chain id normalization accepts BSC testnet formats returned by wallet bridges', () => {
+  assert.equal(chainIdNumber('0x61'), 97);
+  assert.equal(chainIdNumber('97'), 97);
+  assert.equal(chainIdNumber(97), 97);
+  assert.equal(chainIdNumber(97n), 97);
+  assert.equal(chainIdNumber('0X61'), 97);
+});
+
+test('chain id normalization rejects malformed or unsafe values', () => {
+  for (const value of ['', ' 0x61', '0x', 'invalid', '-1', '-0x61', '97.0',
+    Number.MAX_SAFE_INTEGER + 1, 2n ** 54n, {}, null, undefined]) {
+    assert.equal(chainIdNumber(value), undefined);
+  }
+});
+
 test('setup events during the initial prompt cannot restore a stale wallet', async () => {
   for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) {
     const h = harness(), gate = deferred();
@@ -60,12 +75,22 @@ test('setup events during either asynchronous pre-send check invalidate the capt
 test('silent setup account/network changes and malformed provider responses invalidate connection', async () => {
   for (const [method, value] of [
     ['eth_accounts', [other]], ['eth_accounts', []], ['eth_accounts', [42]],
-    ['eth_chainId', '0x38'], ['eth_chainId', 'invalid'], ['eth_chainId', 97]
+    ['eth_chainId', '0x38'], ['eth_chainId', 'invalid'], ['eth_chainId', '98'],
+    ['eth_chainId', 98], ['eth_chainId', 2n ** 54n]
   ]) {
     const h = harness(), context = await h.wallet.connect(h.provider);
     h.hooks[method] = () => value;
     await assert.rejects(() => h.wallet.check(context), /changed|reconnect/);
     assert.equal(h.wallet.account(), undefined); assert.equal(h.count(), 0);
+  }
+});
+
+test('setup accepts decimal and numeric BSC testnet chain ids', async () => {
+  for (const value of ['97', 97, 97n]) {
+    const h = harness(), context = await h.wallet.connect(h.provider);
+    h.hooks.eth_chainId = () => value;
+    assert.equal(await h.wallet.check(context), context);
+    assert.equal(h.wallet.account(), owner);
   }
 });
 

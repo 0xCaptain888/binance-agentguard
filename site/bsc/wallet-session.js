@@ -17,6 +17,27 @@ export function selectOKXProvider(announced, okxwallet, ethereum) {
   throw new Error('OKX Wallet not detected. Enable the OKX Wallet extension for this site and reload. If this browser has no extension, open this same URL in Chrome with OKX Wallet installed.');
 }
 
+// EIP-1193 specifies a hex chain-id string, but some wallet bridges expose the
+// same value as a number or decimal string. Normalize only safe, non-negative
+// integer representations so a formatting difference cannot reject BSC
+// testnet while still refusing malformed or ambiguous values.
+export function chainIdNumber(value) {
+  if (typeof value === 'bigint') return value >= 0n && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : undefined;
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
+  if (typeof value !== 'string' || value.length === 0) return undefined;
+  try {
+    if (/^0x[0-9a-f]+$/i.test(value)) {
+      const parsed = BigInt(value);
+      return parsed <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(parsed) : undefined;
+    }
+    if (/^[0-9]+$/.test(value)) {
+      const parsed = BigInt(value);
+      return parsed <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(parsed) : undefined;
+    }
+  } catch { /* Malformed provider values are rejected below. */ }
+  return undefined;
+}
+
 // Deployment setup has no server login. Bind its asynchronous checks to one
 // connection so a late response cannot revive an invalidated wallet.
 export function testnetWalletConnection({ onChange = () => {} } = {}) {
@@ -36,7 +57,7 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
     capture(context);
     const chain = await context.provider.request({ method: 'eth_chainId' });
     capture(context);
-    if (typeof chain !== 'string' || !/^0x[0-9a-f]+$/i.test(chain) || BigInt(chain) !== 97n) {
+    if (chainIdNumber(chain) !== 97) {
       clear(context, changed);
       throw new Error('Switch to BNB Smart Chain Testnet (97), then reconnect.');
     }
@@ -109,7 +130,7 @@ export function walletSession({ request, onChange = () => {}, clock = Date.now,
     assert(context, authenticated);
     const chain = await context.provider.request({ method: 'eth_chainId' });
     assert(context, authenticated);
-    if (Number(BigInt(chain)) !== 97) {
+    if (chainIdNumber(chain) !== 97) {
       clear(context, 'Switch your wallet to BNB Smart Chain Testnet (97), then reconnect.');
       throw new Error('Switch your wallet to BNB Smart Chain Testnet (97), then reconnect.');
     }
