@@ -1,4 +1,4 @@
-import { selectOKXProvider, testnetWalletConnection } from '../wallet-session.js';
+import { pendingWalletNonce, selectOKXProvider, testnetWalletConnection } from '../wallet-session.js';
 const $ = id => document.getElementById(id), wallets = new Map();
 let state, account, prepared, proof, busy = false, attempted = false, recoveryStorageBlocked = false;
 const connection = testnetWalletConnection({ onChange(reason) {
@@ -117,9 +117,7 @@ $('deploy').addEventListener('click', () => work(() => walletLock(async () => {
   if (!$('ack').checked || deploymentRecord()) throw new Error('Review acknowledgement and saved wallet requests before continuing.');
   const tx = prepared.transaction;
   if (tx.to || tx.value !== '0x0' || tx.chainId !== '0x61' || !same(tx.from, account) || !/^0x[0-9a-fA-F]+$/.test(tx.data)) throw new Error('Unexpected deployment transaction.');
-  const rawNonce = await wallet.provider.request({ method: 'eth_getTransactionCount', params: [wallet.account, 'pending'] });
-  if (typeof rawNonce !== 'string' || !/^0x[0-9a-fA-F]+$/.test(rawNonce)) throw new Error('Wallet did not return a valid pending nonce.');
-  const nonce = Number(BigInt(rawNonce)); if (!Number.isSafeInteger(nonce)) throw new Error('Invalid wallet nonce.');
+  const nonce = await pendingWalletNonce(wallet.provider, wallet.account);
   await assertWallet(wallet);
   if (!$('ack').checked || deploymentRecord()) throw new Error('Review acknowledgement and saved wallet requests before continuing.');
   const requested = { state: 'WALLET_REQUESTED', nonce, requestedAt: Date.now() };
@@ -227,9 +225,7 @@ function renderRefresh() {
         !Number.isFinite(value.preparedAt) || Date.now() - value.preparedAt > 60000 || value.preparedAt > Date.now() + 5000) throw new Error('Refresh preparation is stale or mismatched. Prepare again.');
       const tx = value.transactions[index];
       if (!same(tx.from, account) || tx.value !== '0x0' || tx.chainId !== '0x61' || !same(tx.to, address) || tx.data?.toLowerCase() !== '0xf8ac93e8') throw new Error('Unexpected refresh transaction.');
-      const rawNonce = await wallet.provider.request({ method: 'eth_getTransactionCount', params: [wallet.account, 'pending'] });
-      if (typeof rawNonce !== 'string' || !/^0x[0-9a-fA-F]+$/.test(rawNonce)) throw new Error('Wallet did not return a valid pending nonce.');
-      const nonce = Number(BigInt(rawNonce)); if (!Number.isSafeInteger(nonce)) throw new Error('Invalid wallet nonce.');
+      const nonce = await pendingWalletNonce(wallet.provider, wallet.account);
       await assertWallet(wallet); assertEnvironment();
       if (refreshRecord(address)) throw new Error('Existing request found. Do not resend.');
       const saved = { state: 'WALLET_REQUESTED', to: address, nonce, requestedAt: Date.now() };

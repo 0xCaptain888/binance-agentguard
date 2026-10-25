@@ -39,7 +39,7 @@ async function install(context: BrowserContext) {
   } }));
   await context.addInitScript(({ owner, deploymentHash, refreshHash }) => {
     const w = window as any;
-    w.walletStub = { chain: "0x61", account: owner, error: 0, sends: [], events: {} };
+    w.walletStub = { chain: "0x61", account: owner, nonce: "0x7", error: 0, sends: [], events: {} };
     w.okxwallet = { isOkxWallet: true,
       on(event: string, listener: Function) { w.walletStub.events[event] = listener; },
       removeListener(event: string) { delete w.walletStub.events[event]; },
@@ -48,7 +48,10 @@ async function install(context: BrowserContext) {
         if (input.method === "eth_requestAccounts" && w.walletStub.holdConnect)
           await new Promise(resolve => { w.walletStub.releaseConnect = resolve; });
         if (["eth_requestAccounts", "eth_accounts"].includes(input.method)) return [w.walletStub.account];
-        if (input.method === "eth_getTransactionCount") return "0x7";
+        if (input.method === "eth_getTransactionCount") {
+          if (w.walletStub.holdNonce) await new Promise(resolve => { w.walletStub.releaseNonce = resolve; });
+          return w.walletStub.nonce;
+        }
         if (input.method === "eth_sendTransaction") {
           w.walletStub.sends.push(input.params[0]);
           if (w.walletStub.hold) await new Promise(resolve => { w.walletStub.release = resolve; });
@@ -109,6 +112,58 @@ test("deployment recovery persists nonce and sends it to independent verificatio
     state: "VERIFIED", nonce: 7, hash: deploymentHash
   });
 });
+
+for (const kind of ["deployment", "refresh"]) {
+  for (const format of ["hex", "uppercase hex", "decimal", "number", "bigint", "zero"]) {
+    test(`${kind} normalizes a ${format} nonce and persists the exact sent value`, async ({ page }) => {
+      await open(page);
+      if (kind === "deployment") await readyDeploy(page);
+      else { await connect(page); await verify(page); }
+      await page.evaluate(format => {
+        (window as any).walletStub.nonce = format === "hex" ? "0x7" : format === "uppercase hex" ? "0X07"
+          : format === "decimal" ? "7" : format === "bigint" ? 7n : format === "zero" ? 0 : 7;
+      }, format);
+      await (kind === "deployment" ? page.locator("#deploy") : feedButton(page)).click();
+      await expect(page.locator(kind === "deployment" ? "#hash" : "#refresh-hash-0")).toHaveValue(
+        kind === "deployment" ? deploymentHash : refreshHash);
+      const nonce = format === "zero" ? 0 : 7;
+      expect(await sends(page)).toHaveLength(1);
+      expect((await sends(page))[0].nonce).toBe(`0x${nonce.toString(16)}`);
+      expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), kind === "deployment" ? key : refreshKey))
+        .toMatchObject({ state: "SUBMITTED", nonce });
+    });
+  }
+  for (const format of ["missing", "null", "empty", "malformed", "object", "unsafe", "negative", "fraction"]) {
+    test(`${kind} refuses a ${format} nonce before sending or saving a request lock`, async ({ page }) => {
+      await open(page);
+      if (kind === "deployment") await readyDeploy(page);
+      else { await connect(page); await verify(page); }
+      await page.evaluate(format => {
+        (window as any).walletStub.nonce = format === "missing" ? undefined : format === "null" ? null
+          : format === "empty" ? "" : format === "malformed" ? "0x" : format === "object" ? { result: "0x7" }
+          : format === "unsafe" ? "0x20000000000000" : format === "negative" ? -1 : 0.5;
+      }, format);
+      const storage = kind === "deployment" ? key : refreshKey;
+      const before = await page.evaluate(key => localStorage.getItem(key), storage);
+      await (kind === "deployment" ? page.locator("#deploy") : feedButton(page)).click();
+      await expect(page.locator("#notice")).toContainText("No transaction was requested");
+      expect(await sends(page)).toEqual([]);
+      expect(await page.evaluate(key => localStorage.getItem(key), storage)).toBe(before);
+    });
+  }
+  test(`${kind} cannot send when the wallet disconnects during the pending nonce read`, async ({ page }) => {
+    await open(page);
+    if (kind === "deployment") await readyDeploy(page);
+    else { await connect(page); await verify(page); }
+    await page.evaluate(() => { (window as any).walletStub.holdNonce = true; });
+    await (kind === "deployment" ? page.locator("#deploy") : feedButton(page)).click();
+    await expect.poll(() => page.evaluate(() => typeof (window as any).walletStub.releaseNonce)).toBe("function");
+    await page.evaluate(() => { const s = (window as any).walletStub; s.events.disconnect(); s.releaseNonce(); });
+    await expect(page.locator("#notice")).toContainText("connection changed");
+    expect(await sends(page)).toEqual([]);
+    expect(await page.evaluate(key => localStorage.getItem(key), kind === "deployment" ? key : refreshKey)).toBeNull();
+  });
+}
 
 test("a deployment recovery response missing the saved nonce cannot unlock configuration export", async ({ page }) => {
   await open(page); await readyDeploy(page);

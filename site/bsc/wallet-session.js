@@ -17,14 +17,12 @@ export function selectOKXProvider(announced, okxwallet, ethereum) {
   throw new Error('OKX Wallet not detected. Enable the OKX Wallet extension for this site and reload. If this browser has no extension, open this same URL in Chrome with OKX Wallet installed.');
 }
 
-// EIP-1193 specifies a hex chain-id string, but some wallet bridges expose the
-// same value as a number or decimal string. Normalize only safe, non-negative
-// integer representations so a formatting difference cannot reject BSC
-// testnet while still refusing malformed or ambiguous values.
-export function chainIdNumber(value) {
+// Normalize RPC quantities without coercing empty values, objects, fractions
+// or unsafe integers. Wallet bridges can expose hex, decimal, number or bigint.
+export function rpcQuantityNumber(value) {
   if (typeof value === 'bigint') return value >= 0n && value <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(value) : undefined;
   if (typeof value === 'number') return Number.isSafeInteger(value) && value >= 0 ? value : undefined;
-  if (typeof value !== 'string' || value.length === 0) return undefined;
+  if (typeof value !== 'string' || value.length === 0 || value.length > 80) return undefined;
   try {
     if (/^0x[0-9a-f]+$/i.test(value)) {
       const parsed = BigInt(value);
@@ -36,6 +34,23 @@ export function chainIdNumber(value) {
     }
   } catch { /* Malformed provider values are rejected below. */ }
   return undefined;
+}
+
+export const chainIdNumber = rpcQuantityNumber;
+
+// This is a read only: callers still check the bound wallet after awaiting it,
+// persist the exact nonce before sending, and retain uncertain-request locks.
+export async function pendingWalletNonce(provider, account) {
+  const raw = await provider.request({ method: 'eth_getTransactionCount', params: [account, 'pending'] });
+  const nonce = rpcQuantityNumber(raw);
+  if (nonce === undefined) {
+    // Report only a bounded format description, never arbitrary provider data.
+    const format = raw === null ? 'null' : Array.isArray(raw) ? 'array' : typeof raw !== 'string' ? typeof raw
+      : raw.length === 0 ? 'empty string' : /^0x/i.test(raw) ? 'invalid hex string'
+      : /^[0-9]+$/.test(raw) ? 'unsafe decimal string' : 'non-integer string';
+    throw new Error(`Wallet did not return a valid pending nonce (received ${format}). No transaction was requested. Reconnect OKX Wallet and retry.`);
+  }
+  return nonce;
 }
 
 const BSC_TESTNET_PARAMS = {

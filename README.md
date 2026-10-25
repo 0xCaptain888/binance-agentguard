@@ -137,6 +137,17 @@ on another chain, connection first requests an OKX switch to `0x61` and can
 request adding the documented BSC Testnet network when the wallet does not
 know it yet. The isolated local lab needs no wallet.
 
+Controlled deployment and synthetic-feed refresh also normalize pending nonces
+returned as hex strings, decimal strings, numbers or bigints. A valid nonce of
+zero is preserved; missing, malformed or unsafe values stop before any send or
+new recovery record. Nonce errors report the received type/format without
+printing arbitrary provider data. The exact nonce remains bound to the saved
+request and independent RPC verification; uncertain submissions cannot be retried.
+The nonce compatibility patch passes all 151 local Node tests, type checking and
+site verification. Its controlled-setup browser suite has 57 cases; local
+Chromium launch is blocked by the macOS sandbox, so browser validation runs in
+Ubuntu CI. See the [patch validation notes](docs/releases/okx-pending-nonce-compatibility.md).
+
 ```bash
 cp config/bsc-testnet.example.json config/bsc-testnet.json
 # configure public addresses and copy .env.example to .env; set both HTTPS RPCs
