@@ -28,6 +28,8 @@ const text = (id, value) => { $(id).textContent = value; };
 const short = value => value ? `${value.slice(0, 8)}…${value.slice(-6)}` : '—';
 const usd = value => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(Number(value) / 1e18);
 const percentage = value => `${(Number(value) / 100).toFixed(1)}%`;
+const validAddress = value => typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value) && !/^0x0{40}$/i.test(value);
+const sameAddress = (left, right) => validAddress(left) && validAddress(right) && left.toLowerCase() === right.toLowerCase();
 function units(value, decimals) {
   const s = String(value).padStart(decimals + 1, '0');
   return decimals ? `${s.slice(0, -decimals)}.${s.slice(-decimals).slice(0, 6)}`.replace(/\.?0+$/, '') : s;
@@ -82,6 +84,10 @@ function render() {
   text('connect', local ? 'Local lab · No wallet needed' : account ? `OKX · ${short(account)} · Disconnect` : 'Connect OKX Wallet');
   $('connect').disabled = local || busy;
   text('mode-note', state.note);
+  const dependency = state.dependency || s.dependency;
+  text('dependency-mode', dependency?.dependencyMode === 'CONTROLLED_TEST_ASSETS' ? 'SYNTHETIC TEST ASSETS · NOT MARKET EXECUTION' : local ? 'LOCAL FIXTURES · NOT PUBLIC-CHAIN PROOF' : 'EXTERNAL DEPENDENCIES · REVIEW REQUIRED');
+  text('dependency-note', dependency?.note || 'Dependency safety, real market integration and campaign eligibility are not established by this console.');
+  text('authority-mode', !validAddress(s.owner) || !validAddress(s.operator) ? 'Authority unavailable: review the configured owner and operator.' : sameAddress(s.owner, s.operator) ? 'Owner-manual: not delegated automation.' : 'Distinct operator configured: capabilities remain limited by vault policy.');
   text('runner-state', frozen ? 'Runner frozen' : s.paused ? 'Vault paused' : !priced ? 'Price source unavailable' : 'Ready to plan');
   text('runner-detail', !priced ? 'Rebalancing is blocked. Balances and owner pause/withdraw controls remain available.' : frozen ? 'Proof mismatch. Review the journal. Owner controls remain available.' : s.paused ? 'Owner withdrawals remain available.' : 'Contract policy is active. No trade runs without approval.');
   text('value', priced ? usd(p.totalUsd) : 'Unavailable'); text('drift', priced ? percentage(p.driftBps) : '—');

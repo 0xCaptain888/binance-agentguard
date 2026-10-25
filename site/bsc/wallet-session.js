@@ -17,6 +17,63 @@ export function selectOKXProvider(announced, okxwallet, ethereum) {
   throw new Error('OKX Wallet not detected. Enable the OKX Wallet extension for this site and reload. If this browser has no extension, open this same URL in Chrome with OKX Wallet installed.');
 }
 
+// Deployment setup has no server login. Bind its asynchronous checks to one
+// connection so a late response cannot revive an invalidated wallet.
+export function testnetWalletConnection({ onChange = () => {} } = {}) {
+  let current;
+  const changed = 'Wallet changed. Reconnect before any wallet request.';
+  function clear(context, reason) {
+    if (!context || current !== context) return;
+    current = undefined;
+    for (const [event, listener] of context.listeners) context.provider.removeListener?.(event, listener);
+    onChange(reason);
+  }
+  function capture(context = current) {
+    if (!context || current !== context) throw new Error('Wallet connection changed. Reconnect before continuing.');
+    return context;
+  }
+  async function check(context = capture()) {
+    capture(context);
+    const chain = await context.provider.request({ method: 'eth_chainId' });
+    capture(context);
+    if (typeof chain !== 'string' || !/^0x[0-9a-f]+$/i.test(chain) || BigInt(chain) !== 97n) {
+      clear(context, changed);
+      throw new Error('Switch to BNB Smart Chain Testnet (97), then reconnect.');
+    }
+    const accounts = await context.provider.request({ method: 'eth_accounts' });
+    capture(context);
+    if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || accounts[0].toLowerCase() !== context.account.toLowerCase()) {
+      clear(context, changed);
+      throw new Error(changed);
+    }
+    return context;
+  }
+  return {
+    capture, check,
+    account: () => current?.account,
+    disconnect: () => clear(current),
+    async connect(provider) {
+      clear(current);
+      const context = { provider, listeners: [], account: undefined };
+      current = context;
+      try {
+        for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) {
+          const listener = () => clear(context, changed);
+          context.listeners.push([event, listener]); provider.on?.(event, listener);
+        }
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+        capture(context);
+        if (!Array.isArray(accounts) || typeof accounts[0] !== 'string' || !/^0x[0-9a-f]{40}$/i.test(accounts[0]))
+          throw new Error('No usable wallet account returned.');
+        context.account = accounts[0];
+        await check(context);
+        onChange();
+        return context;
+      } catch (error) { clear(context); throw error; }
+    }
+  };
+}
+
 export function walletSession({ request, onChange = () => {}, clock = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout }) {
   let current, timer;

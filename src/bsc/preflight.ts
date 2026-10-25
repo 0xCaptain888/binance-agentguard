@@ -2,6 +2,7 @@ import { keccak256, parseAbi, type PublicClient } from "viem";
 import { deploymentData, type DeploymentConfig } from "./deployment.js";
 import { json } from "./rebalancer.js";
 import { tokenAbi, routerAbi } from "./abi.js";
+import { dependencyDisclosure } from "./dependency-disclosure.js";
 
 const feedAbi = parseAbi([
   "function decimals() view returns (uint8)",
@@ -85,9 +86,11 @@ export async function inspectDeployment(client: PublicClient, config: Deployment
     check("deployment_gas", gasEstimate > 0n && gasPrice > 0n && ownerBalance !== null && ownerBalance >= bufferedCost,
       "Owner balance must cover the current estimate with a 20% buffer. Wallet fees may change before confirmation.");
   } catch { check("deployment_gas", false, "Constructor gas estimation failed. Check owner test gas and dependency interfaces."); }
+  const dependency = await dependencyDisclosure(client, config.router, chainId, blockNumber);
   check("canonical_block", (await client.getBlock({ blockNumber })).hash === block.hash, "The block hash must remain unchanged during inspection.");
   return { state: checks.every(c => c.passed) ? "READY" as const : "BLOCKED" as const, chainId,
     environment: chainId === 97 ? "BSC_TESTNET" : "LOCAL_EVM", campaignProof: false, financialTransactionCreated: false,
+    dependency,
     checkedAt: new Date().toISOString(), blockNumber, blockHash: block.hash, checks, assets, oracles, codeHashes,
     gas: { ownerBalance, estimate: gasEstimate, gasPrice, bufferPercent: 20 },
     note: "Read-only compatibility checks at one block. Feed-to-asset mapping, router trust and token behavior still require human review. Not an audit, fill guarantee or campaign proof." };
@@ -98,7 +101,7 @@ export async function deploymentPreflight(client: PublicClient, verifier: Public
   const independent = await inspectDeployment(verifier, config, chainId, primary.blockNumber);
   const sameBlock = primary.blockHash === independent.blockHash;
   // Gas price is a current provider estimate; anchored balances, assets and constructor gas must agree.
-  const facts = (r: typeof primary) => ({ assets: r.assets, oracles: r.oracles, codeHashes: r.codeHashes, balance: r.gas.ownerBalance, gas: r.gas.estimate, checks: r.checks });
+  const facts = (r: typeof primary) => ({ dependency: r.dependency, assets: r.assets, oracles: r.oracles, codeHashes: r.codeHashes, balance: r.gas.ownerBalance, gas: r.gas.estimate, checks: r.checks });
   const matchingReads = json(facts(primary)) === json(facts(independent));
   const canonical = await Promise.all([client.getBlock({ blockNumber: primary.blockNumber }), verifier.getBlock({ blockNumber: primary.blockNumber })]);
   const stillCanonical = canonical.every(b => b.hash === primary.blockHash);

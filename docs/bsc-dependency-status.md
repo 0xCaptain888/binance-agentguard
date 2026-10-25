@@ -1,5 +1,9 @@
 # BSC testnet dependency investigation
 
+The controlled synthetic setup is intentionally not part of this dependency
+search. Its fixed-price feeds and router are local test instruments only; they
+must never be presented as evidence that a real BSC market route is deployable.
+
 ## Status on October 25, 2026
 
 The OKX extension selector is implemented in both the console and deployment

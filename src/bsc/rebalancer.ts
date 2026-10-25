@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { decodeFunctionData, encodeFunctionData, getAddress, keccak256, parseEventLogs, toHex,
   type Address, type Hash, type Hex, type PublicClient } from "viem";
 import { vaultAbi, tokenAbi, routerAbi } from "./abi.js";
+import { dependencyDisclosure, type DependencyDisclosure } from "./dependency-disclosure.js";
 
 export const json = (value: unknown) => JSON.stringify(value, (_, item) => typeof item === "bigint" ? item.toString() : item, 2);
 const ceilDiv = (n: bigint, d: bigint) => (n + d - 1n) / d;
@@ -14,6 +15,7 @@ export type Snapshot = {
   cooldownSeconds: number; maxOracleAge: number; paused: boolean; nonce: bigint;
   spentTodayUsd: bigint; lastExecutionAt: bigint;
   pricingAvailable?: boolean;
+  dependency?: DependencyDisclosure;
 };
 export type Plan = {
   id: Hash; chainId: number; vault: Address; owner: Address; operator: Address;
@@ -65,7 +67,8 @@ export async function readSnapshot(client: PublicClient, vault: Address, atBlock
     maxActionUsd: policy[0], maxDailyUsd: policy[1],
     targetBps: policy[2], slippageBps: policy[3], cooldownSeconds: policy[4], maxOracleAge: policy[5],
     spentTodayUsd: spendDay === block.timestamp / 86400n ? spent : 0n, lastExecutionAt,
-    balance0, balance1, decimals0, decimals1, symbol0, symbol1 };
+    balance0, balance1, decimals0, decimals1, symbol0, symbol1,
+    dependency: await dependencyDisclosure(client, router, chainId, blockNumber) };
 }
 
 // Pure deterministic proposal. No signing or broadcasting happens in the planner.
@@ -127,7 +130,7 @@ export async function planFromChain(client: PublicClient, vault: Address): Promi
 export type Verification = { state: "VERIFIED" | "FROZEN"; chainId: number; transactionHash: Hash;
   blockNumber: bigint; blockHash: Hash; snapshotBlockHash: Hash; confirmations: bigint;
   planId: Hash; checks: Record<string, boolean>; reasons: string[]; evidenceHash: string;
-  createdAt: string; environment: "LOCAL_EVM" | "BSC_TESTNET"; campaignProof: false };
+  createdAt: string; environment: "LOCAL_EVM" | "BSC_TESTNET"; campaignProof: false; dependency?: DependencyDisclosure };
 
 export async function verifyExecution(client: PublicClient, plan: Plan, hash: Hash, confirmations = 2): Promise<Verification> {
   const chainId = await client.getChainId();
@@ -144,8 +147,10 @@ export async function verifyExecution(client: PublicClient, plan: Plan, hash: Ha
   const transfers = parseEventLogs({ abi: tokenAbi, eventName: "Transfer", logs: receipt.logs, strict: true });
   const event = events.length === 1 ? events[0].args : undefined;
   let snapshotBound = false;
+  let dependency: DependencyDisclosure | undefined;
   try {
     const snapshot = await readSnapshot(client, plan.vault, plan.snapshotBlock);
+    dependency = snapshot.dependency;
     snapshotBound = keccak256(toHex(json(snapshot))) === plan.snapshotHash &&
       snapshot.owner.toLowerCase() === plan.owner.toLowerCase() && snapshot.operator.toLowerCase() === plan.operator.toLowerCase() &&
       (plan.sellToken0 ? snapshot.token0 : snapshot.token1).toLowerCase() === plan.tokenIn.toLowerCase() &&
@@ -195,7 +200,7 @@ export async function verifyExecution(client: PublicClient, plan: Plan, hash: Ha
   const body = { state: reasons.length ? "FROZEN" as const : "VERIFIED" as const, chainId, transactionHash: hash,
     blockNumber: receipt.blockNumber, blockHash: receipt.blockHash, snapshotBlockHash: snapshotBlock.hash,
     confirmations: head >= receipt.blockNumber ? head - receipt.blockNumber + 1n : 0n,
-    planId: plan.id, checks, reasons, createdAt: new Date().toISOString(),
+    planId: plan.id, checks, reasons, dependency, createdAt: new Date().toISOString(),
     environment: chainId === 31337 ? "LOCAL_EVM" as const : "BSC_TESTNET" as const, campaignProof: false as const };
   return { ...body, evidenceHash: createHash("sha256").update(json(body)).digest("hex") };
 }

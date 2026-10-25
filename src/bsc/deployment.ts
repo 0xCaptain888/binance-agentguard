@@ -3,11 +3,19 @@ import { createPublicClient, encodeDeployData, getAddress, getContractAddress, h
   parseUnits, TransactionReceiptNotFoundError, zeroAddress, type Address, type Hash, type Hex, type PublicClient } from "viem";
 import { compileContracts } from "./compiler.js";
 import { json } from "./rebalancer.js";
+import { controlledDisclosure, dependencyDisclosure } from "./dependency-disclosure.js";
 
 const addressKeys = ["owner", "operator", "token0", "token1", "router", "feed0", "feed1"] as const;
 export type DeploymentConfig = Record<typeof addressKeys[number], Address> & {
   policy: { maxActionUsd: bigint; maxDailyUsd: bigint; targetToken0Bps: number; maxSlippageBps: number; cooldownSeconds: number; maxOracleAge: number };
   publicBaseUrl: string;
+  executionMode?: "OWNER_MANUAL" | "DELEGATED";
+  dependencyMode?: "CONTROLLED_TEST_ASSETS";
+  controlledEnvironment?: Address;
+  controlledDeploymentHash?: Hash;
+  campaignProof?: false;
+  marketEvidence?: false;
+  note?: string;
 };
 export function parseDeploymentConfig(value: unknown): DeploymentConfig {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Deployment config must be an object");
@@ -37,7 +45,23 @@ export function parseDeploymentConfig(value: unknown): DeploymentConfig {
     if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || url.pathname !== "/") throw new Error("Use a public HTTPS origin without path, query or credentials");
     publicBaseUrl = url.origin;
   }
-  return { ...addresses, policy, publicBaseUrl };
+  const metadata: Partial<DeploymentConfig> = {};
+  if (input.executionMode !== undefined) {
+    if (!["OWNER_MANUAL", "DELEGATED"].includes(input.executionMode) ||
+      (addresses.owner === addresses.operator) !== (input.executionMode === "OWNER_MANUAL")) throw new Error("Execution mode must match the explicit operator");
+    metadata.executionMode = input.executionMode;
+  }
+  for (const key of ["marketEvidence", "campaignProof"] as const) {
+    if (input[key] !== undefined && input[key] !== false) throw new Error(`${key} must not claim unverified proof`);
+    if (input[key] === false) metadata[key] = false;
+  }
+  if (["dependencyMode", "controlledEnvironment", "controlledDeploymentHash"].some(key => input[key] !== undefined)) {
+    if (input.dependencyMode !== "CONTROLLED_TEST_ASSETS" || input.marketEvidence !== false || input.campaignProof !== false ||
+      !input.executionMode || !isAddress(input.controlledEnvironment ?? "") || input.controlledEnvironment.toLowerCase() === zeroAddress ||
+      !/^0x[0-9a-fA-F]{64}$/.test(input.controlledDeploymentHash ?? "")) throw new Error("Complete controlled test disclosure required");
+    Object.assign(metadata, controlledDisclosure, { controlledEnvironment: getAddress(input.controlledEnvironment), controlledDeploymentHash: input.controlledDeploymentHash });
+  }
+  return { ...addresses, policy, publicBaseUrl, ...metadata };
 }
 export function deploymentData(config: DeploymentConfig): Hex {
   const { owner, operator, token0, token1, router, feed0, feed1, policy } = config;
@@ -68,6 +92,7 @@ export async function prepareDeployment(client: PublicClient, config: Deployment
   const simulation = await client.call({ account: config.owner, data, blockNumber });
   if (!simulation.data || simulation.data === "0x") throw new Error("Deployment simulation returned no runtime code");
   return { status: "UNSIGNED_TESTNET_DEPLOYMENT", chainId, environment: chainId === 97 ? "BSC_TESTNET" : "LOCAL_EVM",
+    dependency: await dependencyDisclosure(client, config.router, chainId, blockNumber),
     campaignProof: false, createdAt: new Date().toISOString(), simulatedAtBlock: blockNumber, config,
     initCodeHash: keccak256(data), transaction: { from: config.owner, data, value: "0x0", chainId: `0x${chainId.toString(16)}` },
     note: "Unsigned deployment. Review dependencies and policy. Wallet confirmation spends test gas; no deposits or token approvals are bundled." };

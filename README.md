@@ -62,10 +62,52 @@ npx playwright install chromium
 npm run bsc:browser
 ```
 
+Local regression on October 26, 2026 (UTC+8): `npm run bsc:check` passed
+type checking, all 126 Node tests and the local VERIFIED/BLOCKED/FROZEN contract
+demonstration; `npm run verify:site` passed all 29 required signals. The new
+controlled-setup file contains 27 browser cases, including nonce recovery and
+wallet disconnect races. Test discovery succeeds, but these cases have **not**
+been verified in a browser: Chromium cannot register its Mach port under the
+local macOS sandbox. The earlier linked CI run does not cover these local changes.
+
 Browser screenshots are test artifacts, not campaign evidence.
 
 The BSC testnet path is wallet-signed and keyless on the server. It requires a
 reviewed vault deployment plus two independent HTTPS RPC providers:
+
+For a deterministic wallet-and-recovery rehearsal, the repository also includes
+an explicitly synthetic chain-97 environment. It deploys two fixed-decimal test
+tokens, owner-refreshed fixed-$1 feeds and a pre-funded fixed-rate router. This
+path is useful for checking deployment attestation, nonce-bound refresh recovery
+and authority configuration, but it is **not** market execution, audited
+liquidity, campaign evidence or a substitute for a reviewed vault deployment.
+Start it with the configured owner address and two distinct HTTPS chain-97 RPCs:
+
+```bash
+npm run bsc:controlled-setup -- 0xYOUR_OWNER_ADDRESS
+# open the printed /bsc/setup/ URL
+```
+
+The setup service is loopback-only, stores no signing key, rejects hostile
+origins, and requires the owner to confirm each wallet request in OKX Wallet.
+Before returning an unsigned deployment, it anchors both RPC reads to the same
+recent block, compares the block hash, owner balance, deployment gas estimate,
+and init code, and applies the higher observed gas price to the 20% buffer.
+Any disagreement fails closed and no wallet request is opened.
+An uncertain wallet response keeps its exact hash/nonce recovery lock across
+reloads; only an explicit wallet rejection permits a deliberate retry. If
+browser storage is unavailable, new sends are disabled while verified evidence
+and recovery controls remain visible. The saved controlled config is created
+exclusively and never overwrites an existing config. Deployment recovery binds
+the pending wallet nonce to the submitted transaction and checks it against
+both RPCs; older hash-only recovery records remain inspectable without nonce
+binding.
+Setup also invalidates a connection on account/network changes or disconnect,
+including while the initial account prompt is open. Checks before signing stay
+bound to that exact connection. If a transaction dialog was already open, a
+returned hash is still saved for recovery. Deployment proof checks bind both
+transaction and receipt hashes, and recheck confirmation depth on both RPCs
+after inspecting contract state.
 
 The BSC console and deployment page connect explicitly through **OKX Wallet**.
 When multiple wallet extensions are installed, only the OKX provider is selected.

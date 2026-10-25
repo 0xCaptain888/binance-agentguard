@@ -5,6 +5,7 @@ dist/
 !.env.example
 .runtime/
 config/bsc-testnet.json
+config/bsc-controlled.json
 test-results/
 playwright-report/
 deploy/bsc/runtime.env

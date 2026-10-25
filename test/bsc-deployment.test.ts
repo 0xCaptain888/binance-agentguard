@@ -41,6 +41,17 @@ test("deployment preparation simulates constructor without sending transactions 
   await assert.rejects(() => prepareDeployment(f.client, config));
   await assert.rejects(() => prepareDeployment(f.client, { ...config, router: f.stranger }, 31337));
 });
+test("ordinary configs accept explicit false evidence flags without requiring synthetic metadata", () => {
+  const raw = { ...config, policy: { ...config.policy, maxActionUsd: "10", maxDailyUsd: "25" } };
+  for (const flags of [{ marketEvidence: false }, { campaignProof: false }, { marketEvidence: false, campaignProof: false }])
+    assert.doesNotThrow(() => parseDeploymentConfig({ ...raw, ...flags }));
+  for (const value of [true, "false", 0, null]) {
+    assert.throws(() => parseDeploymentConfig({ ...raw, marketEvidence: value }));
+    assert.throws(() => parseDeploymentConfig({ ...raw, campaignProof: value }));
+  }
+  assert.throws(() => parseDeploymentConfig({ ...raw, dependencyMode: "CONTROLLED_TEST_ASSETS" }), /Complete controlled/);
+  assert.throws(() => parseDeploymentConfig({ ...raw, controlledEnvironment: config.router }), /Complete controlled/);
+});
 test("deployment attestation matches real runtime including immutables and the initial policy at its historical block", async () => {
   const { hash, receipt } = await deploy();
   await f.write(receipt.contractAddress!, f.artifacts.AgentGuardVault.abi, "setPolicy", [{ ...config.policy, maxActionUsd: 1n }]);

@@ -125,6 +125,7 @@ export async function startBscServer(options: ServerOptions) {
           if (path === "/api/v1/status") {
             const snapshot = await readSnapshot(client, vault, undefined, true);
             return reply(200, { mode: options.mode, environment: fixture ? "LOCAL_EVM" : "BSC_TESTNET", campaignProof: false,
+              dependency: snapshot.dependency, executionMode: snapshot.owner.toLowerCase() === snapshot.operator.toLowerCase() ? "OWNER_MANUAL" : "DELEGATED",
               snapshot, portfolio: snapshot.pricingAvailable ? portfolio(snapshot) : null, journal: store.view,
               pricing: { available: snapshot.pricingAvailable, reason: snapshot.pricingAvailable ? null : "oracle_unavailable_or_stale" },
               readiness: { publicOriginConfigured: !!boundary.publicOrigin, deployedPublicly: false, erc8004Registered: !!registration, marketplaceListed: false, campaignQualified: false },

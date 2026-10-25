@@ -70,6 +70,41 @@ A stuck or replaced hash remains pending. Inspect wallet activity and chain
 nonce; do not resend automatically. An original job cannot silently change to a
 replacement hash. There is no continuous reorg monitor for completed receipts.
 
+## Controlled synthetic setup
+
+`npm run bsc:controlled-setup -- 0xOWNER` starts a loopback-only chain-97 setup
+service for rehearsing wallet review and recovery without a server-side signer.
+It is intentionally separate from the public rebalancer: the environment uses
+synthetic test tokens, fixed-$1 owner-refreshed feeds and a fixed-rate router.
+The service labels every response `CONTROLLED_TEST_ASSETS`,
+`marketEvidence: false`, and `campaignProof: false`; those markers do not prove
+market readiness or campaign eligibility.
+
+The browser must use OKX Wallet on BNB Smart Chain Testnet. Deployment and each
+feed refresh are unsigned until the owner reviews them. The service independently
+anchors both configured RPCs to one recent block and compares the block hash,
+owner balance, deployment gas estimate and init-code hash. It applies the higher
+observed gas price to the 20% buffer and fails closed on any disagreement. It
+writes proof files with private permissions, binds
+deployment recovery to the pending wallet nonce, and binds refresh recovery to
+the original feed, sender, calldata, nonce and canonical receipt. Both are
+checked against the independent RPCs. An uncertain wallet response remains locked after reload;
+only a wallet rejection (`4001`) clears that exact attempt. Never delete a
+recovery marker to force another send.
+
+The setup connection listens for account changes, chain changes and disconnect
+before opening the account prompt, and detaches these listeners on invalidation.
+Every asynchronous pre-send check is bound to the original connection. A late
+account response cannot restore it; a hash returned from an already-open
+transaction dialog is still persisted. Deployment attestation binds the returned
+transaction hash as well as the receipt hash. Both deployment and refresh
+verification recheck canonical block identity and two-confirmation depth on
+both RPCs after the historical reads; a regressed head cannot unlock recovery.
+
+This mode requires two distinct HTTPS archive-capable chain-97 RPC endpoints and
+test BNB for gas. It does not create a vault deposit, trade, approval or
+campaign event.
+
 ## Journal ownership, restart and backup
 
 One process owns one journal. Startup acquires `<journal>.lock` exclusively and

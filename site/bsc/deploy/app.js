@@ -192,6 +192,9 @@ api('').then(value => {
   if (value.chainId !== 97 || value.status !== 'UNSIGNED_TESTNET_DEPLOYMENT') throw new Error('Expected unsigned BSC testnet configuration.');
   prepared = value;
   const c = value.config;
+  $('dependency-mode').textContent = value.dependency?.dependencyMode === 'CONTROLLED_TEST_ASSETS' ? 'SYNTHETIC TEST ASSETS · NOT MARKET EXECUTION' : 'EXTERNAL DEPENDENCIES · REVIEW REQUIRED';
+  $('dependency-note').textContent = value.dependency?.note || 'Router trust, feed-to-asset mapping and real market integration remain unverified. A readiness check is not a safety attestation.';
+  $('authority-mode').textContent = c.owner.toLowerCase() === c.operator.toLowerCase() ? 'Owner-manual: not delegated automation.' : 'Distinct operator configured: capabilities remain limited by vault policy.';
   rows('addresses', ['owner', 'operator', 'token0', 'token1', 'router', 'feed0', 'feed1'].map(key => [key, c[key]]));
   const dollars = raw => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(raw) / 1e18);
   rows('policy', [['Action limit', dollars(c.policy.maxActionUsd)], ['Daily limit', dollars(c.policy.maxDailyUsd)],
