@@ -49,10 +49,10 @@ layout, owner controls during an oracle outage, wallet deployment safeguards,
 rebalance submission recovery after reload or explicit wallet rejection, and
 wallet changes during login/submission plus session timeout and HTTP 401 recovery.
 All 51 browser cases passed in the Node 22 job of
-[Linux CI on October 26, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40227593910),
-alongside 126 Node tests and the public-testnet Docker build in that job.
-That run's Node 20 job failed on a timestamp-sensitive feed-refresh gas estimate;
-the current code adds a 20% gas buffer and a timestamp-boundary regression.
+[Linux CI on October 26, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40231420801),
+alongside all 129 Node tests on both Node 20.18 and Node 22 and the public-testnet
+Docker build. The timestamp-sensitive feed-refresh gas estimate now includes
+a 20% gas buffer and a timestamp-boundary regression.
 Coverage includes owner-reviewed ERC-8004 registration, proof inspection,
 interrupted wallet recovery and unavailable browser storage. The local EVM avoids
 the console port, and browser startup waits for the HTTP health endpoint.
@@ -79,8 +79,10 @@ Browser screenshots are test artifacts, not campaign evidence.
 To exercise copied mainnet PancakeSwap liquidity and Chainlink rounds without
 user funds, run `npm run bsc:fork`. The isolated chain-31337 simulation checks
 actual router execution, bounded vault rebalance, receipt verification, cooldown,
-pause and zero remaining router allowance. It passed locally on October 26,
-2026 (UTC+8), at source block 129769305. A read-only relay prevents any mainnet
+pause and zero remaining router allowance. It passed locally and in
+[Ubuntu CI](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40231443412)
+on October 26, 2026 (UTC+8), including source block 129770474 in the cloud run.
+A read-only relay prevents any mainnet
 signing or broadcast. This is **fork simulation**, not a live mainnet trade or
 campaign proof. See the [reproduction guide](docs/bsc-mainnet-fork.md) and the
 manual [Ubuntu fork workflow](.github/workflows/bsc-fork.yml).

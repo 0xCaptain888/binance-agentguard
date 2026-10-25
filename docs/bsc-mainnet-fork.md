@@ -88,3 +88,13 @@ Its source pair was `0x16b9a82891338f9bA80E2D6970FddA79D1eb0daE`.
 All 93 upstream read requests completed with zero denied requests, failed
 requests or retries. This records one historical simulation, not public trading
 activity or a guarantee that a future run will pass.
+
+The same code also passed in [Ubuntu CI run 40231443412](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40231443412)
+at source block **129770474**, hash
+`0x84127cb3a95dfc337955e31c8e150155511957747bea670419e797bbbca40251`.
+Its 94 upstream reads completed with zero denied requests, failures or retries.
+The downloaded artifact's report hash was locally recomputed as
+`00dd2a2d7b8cb91af65061e4055a171452f04b5fb29e7c555a73c177ffac554c`;
+all 20 receipt checks, cooldown, pause and zero router allowance passed.
+The artifact is named `bsc-mainnet-fork-simulation`. No public-chain transaction
+was created in either run.
