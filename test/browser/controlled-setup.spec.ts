@@ -159,7 +159,9 @@ for (const kind of ["deployment", "refresh"]) {
     await (kind === "deployment" ? page.locator("#deploy") : feedButton(page)).click();
     await expect.poll(() => page.evaluate(() => typeof (window as any).walletStub.releaseNonce)).toBe("function");
     await page.evaluate(() => { const s = (window as any).walletStub; s.events.disconnect(); s.releaseNonce(); });
-    await expect(page.locator("#notice")).toContainText("connection changed");
+    await expect(page.locator("#notice")).toHaveText("Connect the configured owner.");
+    await expect(page.locator("#connect")).toHaveText("Connect OKX Wallet");
+    await expect(page.locator(kind === "deployment" ? "#deploy" : `[data-feed="${feed0}"]`)).toBeDisabled();
     expect(await sends(page)).toEqual([]);
     expect(await page.evaluate(key => localStorage.getItem(key), kind === "deployment" ? key : refreshKey)).toBeNull();
   });
