@@ -48,7 +48,8 @@
       <div class="panel-heading"><div><div class="eyebrow">PUBLIC TESTNET · READ-ONLY DIAGNOSTICS</div><h2 id="dependency-title">What is blocking deployment?</h2></div><span id="dependency-state" class="badge neutral">LOADING</span></div>
       <p id="dependency-summary" class="body-copy" role="status" aria-live="polite">Reading the last saved dependency scan.</p>
       <dl id="dependency-facts"></dl>
-      <div class="button-row"><button id="reload-dependencies" class="secondary">Reload saved scan</button><code>npm run bsc:dependencies</code></div>
+      <div class="button-row"><button id="run-dependencies" class="secondary" disabled>Run read-only scan</button><button id="reload-dependencies" class="secondary">Reload saved scan</button><code>npm run bsc:dependencies</code></div>
+      <p id="dependency-scan-status" class="body-copy" role="status" aria-live="polite">Scan controls require the running local service. No wallet signature or transaction.</p>
       <p class="body-copy">Reload reads the saved report. Run the command to query both RPC providers again. Testnet candidates require mapping review, an explicitly chosen operator and full deployment preflight. This panel never requests a wallet signature or sends a transaction.</p>
     </section>
     <footer><span>AgentGuard · Built for bounded authority.</span><span>Unaudited reference · Standard ERC-20 assets only</span></footer>

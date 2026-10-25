@@ -12,9 +12,11 @@ import { readSnapshot } from "../src/bsc/rebalancer.js";
 
 let directory: string;
 let app: Awaited<ReturnType<typeof startBscServer>>;
+let probes = 0, releaseProbe: (() => void) | undefined;
 before(async () => { directory = await mkdtemp(join(tmpdir(), "agentguard-test-"));
   app = await startBscServer({ mode: "local", port: 0, journal: join(directory, "journal.json"),
-    dependencyReportPath: join(directory, "dependencies.json") }); });
+    dependencyReportPath: join(directory, "dependencies.json"),
+    dependencyProbe: async () => { probes++; await new Promise<void>(resolve => { releaseProbe = resolve; }); throw new Error("private RPC URL"); } }); });
 after(async () => { await app?.close(); if (directory) await rm(directory, { recursive: true }); });
 async function post(path: string, input: unknown, origin = app.origin) {
   const response = await fetch(`${app.origin}/api/v1${path}`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify(input) });
@@ -43,6 +45,27 @@ test("HTTP rejects cross-origin mutation, invalid JSON and oversized bodies", as
   const invalid = await fetch(`${app.origin}/api/v1/plans`, { method: "POST", headers: { Origin: app.origin, "Content-Type": "application/json" }, body: "[" });
   assert.equal(invalid.status, 400);
   assert.equal((await post("/plans", { large: "x".repeat(17000) })).status, 413);
+});
+test("local scan API rejects cross-origin work and repeated starts share one read-only job", async () => {
+  assert.equal((await post("/dependencies/scan", {}, "https://attacker.invalid")).status, 403);
+  assert.equal(probes, 0);
+  const accepted = await post("/dependencies/scan", {});
+  assert.equal(accepted.status, 202); assert.equal(accepted.body.scan.state, "RUNNING");
+  assert.equal((await post("/dependencies/scan", {})).status, 202); assert.equal(probes, 1);
+  assert.equal((await (await fetch(`${app.origin}/api/v1/dependencies`)).json() as any).scan.state, "RUNNING");
+  releaseProbe!();
+  let summary: any;
+  for (let i = 0; i < 100; i++) {
+    summary = await (await fetch(`${app.origin}/api/v1/dependencies`)).json();
+    if (summary.scan.state === "FAILED") break;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  assert.equal(summary.scan.state, "FAILED"); assert.equal(summary.state, "UNAVAILABLE");
+  assert.equal(summary.financialTransactionCreated, false);
+  const cooldown = await post("/dependencies/scan", {});
+  assert.equal(cooldown.status, 429); assert.ok(cooldown.body.scan.retryAfterSeconds > 0);
+  assert.doesNotMatch(JSON.stringify(summary), /private RPC/);
+  assert.equal(app.store.view.jobs.length, 0);
 });
 test("background reconciliation verifies saved hashes after an RPC outage without rebroadcasting", async () => {
   await post("/local/reset", {});

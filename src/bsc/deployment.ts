@@ -43,15 +43,16 @@ export function deploymentData(config: DeploymentConfig): Hex {
   const { owner, operator, token0, token1, router, feed0, feed1, policy } = config;
   return encodeDeployData({ ...compileContracts().AgentGuardVault, args: [owner, operator, token0, token1, router, feed0, feed1, policy] });
 }
-export async function testnetClients(rpcUrl?: string, verifierRpcUrl?: string) {
+export async function testnetClients(rpcUrl?: string, verifierRpcUrl?: string, signal?: AbortSignal) {
   const endpoint = (value?: string) => {
     if (!value || new URL(value).protocol !== "https:") throw new Error("Configure HTTPS BSC testnet RPC endpoints");
     return value;
   };
   const primary = endpoint(rpcUrl), secondary = endpoint(verifierRpcUrl);
   if (new URL(primary).hostname === new URL(secondary).hostname) throw new Error("Use different RPC providers for deployment verification");
-  const client = createPublicClient({ transport: http(primary), cacheTime: 0 });
-  const verifier = createPublicClient({ transport: http(secondary), cacheTime: 0 });
+  const scanOptions = signal ? { fetchOptions: { signal }, retryCount: 0, timeout: 10000 } : {};
+  const client = createPublicClient({ transport: http(primary, scanOptions), cacheTime: 0 });
+  const verifier = createPublicClient({ transport: http(secondary, scanOptions), cacheTime: 0 });
   if ((await client.getChainId()) !== 97 || (await verifier.getChainId()) !== 97) throw new Error("Only BSC testnet 97 is enabled");
   return { client, verifier };
 }

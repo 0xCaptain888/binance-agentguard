@@ -41,6 +41,7 @@ export function dependencySummary(value: unknown, now = Date.now()) {
     !complete ? "INCOMPLETE" : !snapshotFresh ? "STALE_SNAPSHOT" :
       routerMatches && compatibleCandidates > 0 ? "REVIEW_REQUIRED" : "BLOCKED";
   return { ...base, state, checkedAt, blockNumber: value.blockNumber, ageSeconds, snapshotFresh,
+    serverTime: new Date(now).toISOString(), expiresAt: new Date(Math.min(checked + 120000, (Number(p.timestamp) + 120) * 1000)).toISOString(),
     independentReadsAgree: agrees, complete, routerMatches,
     policy: { maxActionUsd: policy.maxActionUsd, maxSlippageBps: policy.maxSlippageBps, maxOracleAgeSeconds: policy.maxOracleAgeSeconds },
     counts: { tokens: assets.length, pairs: routes.length, quoteDirections: quotes.length, compatibleCandidates },

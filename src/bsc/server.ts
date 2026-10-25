@@ -12,10 +12,11 @@ import { tokenAbi, vaultAbi } from "./abi.js";
 import { serviceBoundary, trustedHost, sameOrigin } from "./boundary.js";
 import { pendingMonitor } from "./operations.js";
 import { claimJournal } from "./journal-lock.js";
-import { readDependencySummary } from "./dependency-status.js";
+import { DependencyScanner, runDependencyProbe } from "./dependency-scan.js";
 
 export type ServerOptions = { mode: "local" | "testnet"; port?: number; rpcUrl?: string; verifierRpcUrl?: string; vault?: Address; journal?: string;
-  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number; registrationHash?: Hash; dependencyReportPath?: string };
+  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number; registrationHash?: Hash; dependencyReportPath?: string;
+  dependencyProbe?: (signal: AbortSignal) => Promise<unknown> };
 class HttpError extends Error { constructor(public code: number, message: string) { super(message); } }
 const address = (value: unknown) => {
   if (typeof value !== "string" || !isAddress(value)) throw new HttpError(400, "Valid wallet address required");
@@ -71,6 +72,9 @@ export async function startBscServer(options: ServerOptions) {
     unlock = await claimJournal(journal);
     const store = new JobStore(journal);
     await store.load();
+    const scanner = new DependencyScanner({ enabled: options.mode === "local" && boundary.host === "127.0.0.1",
+      path: options.dependencyReportPath ?? ".runtime/bsc-dependencies.json",
+      run: options.dependencyProbe ?? (signal => runDependencyProbe(options.rpcUrl, options.verifierRpcUrl, signal)) });
     // Never mix a persisted queue with a different chain or vault.
     if (store.view.jobs.some(j => j.plan.chainId !== initial.chainId || j.plan.vault.toLowerCase() !== vault.toLowerCase())) throw new Error("Journal belongs to another vault");
     let origin = "";
@@ -111,7 +115,7 @@ export async function startBscServer(options: ServerOptions) {
         }
         if (req.method === "GET") {
           if (path === "/healthz") return reply(200, { live: true, mode: options.mode });
-          if (path === "/api/v1/dependencies") return reply(200, await readDependencySummary(options.dependencyReportPath));
+          if (path === "/api/v1/dependencies") return reply(200, await scanner.summary());
           if (path === "/readyz" || path === "/api/v1/operations") {
             const health = await ready(), operations = monitor.summary();
             const ok = health.ready && !operations.frozen && !operations.errorCount && !operations.stalePending.length;
@@ -144,6 +148,11 @@ export async function startBscServer(options: ServerOptions) {
         let rate = rates.get(key); if (!rate || now - rate.at > 60000) rates.set(key, rate = { at: now, count: 0 });
         if (++rate.count > 90) throw new HttpError(429, "Please wait before retrying");
         const input = await body(req);
+        if (path === "/api/v1/dependencies/scan") {
+          const result = scanner.start();
+          if (result.code === 429) res.setHeader("Retry-After", String(result.scan.retryAfterSeconds));
+          return reply(result.code, { scan: result.scan });
+        }
         if (path === "/api/v1/auth/challenge") return reply(200, sessions.challenge(address(input.address)));
         if (path === "/api/v1/auth/session") {
           if (typeof input.nonce !== "string" || typeof input.signature !== "string" || !/^0x[0-9a-fA-F]+$/.test(input.signature)) throw new HttpError(400, "Signature and nonce required");
@@ -288,7 +297,7 @@ export async function startBscServer(options: ServerOptions) {
     return { origin, localOrigin, store, fixture, reconcile: monitor.run, operations: monitor.summary, close: async () => {
       if (timer) clearInterval(timer);
       await new Promise<void>(resolve => { server.close(() => resolve()); server.closeAllConnections(); });
-      await monitor.idle(); await queue; await fixture?.close(); await unlock?.(); unlock = undefined;
+      await scanner.close(); await monitor.idle(); await queue; await fixture?.close(); await unlock?.(); unlock = undefined;
     } };
   } catch (error) { if (timer) clearInterval(timer); await fixture?.close(); await unlock?.(); throw error; }
 }
@@ -296,6 +305,11 @@ export async function startBscServer(options: ServerOptions) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const mode = process.argv.includes("--testnet") ? "testnet" : "local";
   try {
+    // Local read-only scans need the same ignored RPC settings as the CLI.
+    if (mode === "local") {
+      const { loadEnvFile } = await import("node:process");
+      try { loadEnvFile(".env"); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    }
     const app = await startBscServer({ mode, port: Number(process.env.PORT ?? 43188), rpcUrl: process.env.BSC_TESTNET_RPC_URL,
       verifierRpcUrl: process.env.BSC_VERIFIER_RPC_URL, vault: process.env.BSC_VAULT_ADDRESS as Address | undefined,
       publicOrigin: process.env.BSC_PUBLIC_ORIGIN, listenHost: process.env.BSC_LISTEN_HOST, journal: process.env.BSC_JOURNAL_PATH,

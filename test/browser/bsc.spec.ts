@@ -65,6 +65,52 @@ test("an older service missing the diagnostics module still loads the local cons
   await expect(page.locator("#plan")).toBeEnabled();
 });
 
+test("read-only scan starts once, polls completion and respects server cooldown without a wallet prompt", async ({ page }) => {
+  let state = "IDLE", starts = 0;
+  await page.addInitScript(() => {
+    (window as any).okxwallet = { request: () => { throw new Error("Scan must never request a wallet"); } };
+  });
+  await page.route("**/api/v1/dependencies", route => route.fulfill({ json: {
+    state: state === "SUCCEEDED" ? "BLOCKED" : "NOT_CHECKED", deploymentReady: false,
+    scan: { enabled: true, state, retryAfterSeconds: state === "SUCCEEDED" ? 60 : 0 }
+  } }));
+  await page.route("**/api/v1/dependencies/scan", async route => {
+    starts++; state = "RUNNING";
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({ status: 202, json: { scan: { enabled: true, state, retryAfterSeconds: 0 } } });
+  });
+  await page.goto("/bsc/");
+  await expect(page.locator("#run-dependencies")).toBeEnabled();
+  await page.locator("#run-dependencies").click();
+  await expect(page.locator("#run-dependencies")).toHaveText("Scanning testnet…");
+  await expect(page.locator("#run-dependencies")).toBeDisabled();
+  await expect(page.locator("#dependency-scan-status")).toContainText("No wallet request");
+  state = "SUCCEEDED";
+  await expect(page.locator("#dependency-state")).toHaveText("BLOCKED", { timeout: 10000 });
+  await expect(page.locator("#dependency-scan-status")).toContainText("Retry available");
+  await expect(page.locator("#run-dependencies")).toBeDisabled();
+  expect(starts).toBe(1);
+  await expect(page.locator("#plan")).toBeEnabled();
+});
+
+test("a visible candidate expires without a response from a stalled status refresh", async ({ page }) => {
+  await page.clock.install();
+  let reads = 0;
+  await page.route("**/api/v1/dependencies", async route => {
+    reads++;
+    if (reads > 1) { await route.abort(); return; }
+    await route.fulfill({ json: {
+      state: "REVIEW_REQUIRED", snapshotFresh: true, serverTime: "2026-10-25T00:00:00.000Z",
+      expiresAt: "2026-10-25T00:00:02.000Z", scan: { enabled: true, state: "IDLE", retryAfterSeconds: 0 }
+    } });
+  });
+  await page.goto("/bsc/");
+  await expect(page.locator("#dependency-state")).toHaveText("REVIEW REQUIRED");
+  await page.clock.fastForward(3000);
+  await expect(page.locator("#dependency-state")).toHaveText("STALE SNAPSHOT");
+  await expect(page.locator("#dependency-summary")).toContainText("historical snapshot");
+});
+
 test("local VERIFYING journal restores a retry control after reload even without live pricing", async ({ page }) => {
   await page.goto("/bsc/");
   await page.locator("#reset").click();

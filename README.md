@@ -114,10 +114,16 @@ mapping or reports deployment readiness. Stale feeds and below-floor routes
 remain visible. Missing pairs, reverted quotes and failed RPC reads are
 reported separately; failed reads cannot pass verification merely because both
 providers fail equally. The console's **What is blocking deployment?** panel
-shows a sanitized saved-scan summary from `GET /api/v1/dependencies`. Reloading
-reads the saved file; run the command for a new chain scan. Snapshots older
-than 120 seconds are marked historical, and compatible candidates still need
-mapping review and full preflight. Static previews cannot read local scans.
+shows a sanitized saved-scan summary from `GET /api/v1/dependencies`.
+On the local service, **Run read-only scan** starts a fresh two-provider scan
+without a wallet request. It runs in the background, shares concurrent starts,
+aborts RPC work after two minutes and allows another scan 60 seconds after
+completion. The start endpoint is disabled for public/testnet services and
+requires a same-origin POST locally. **Reload saved scan** only reads the
+saved file. The page polls every five seconds while visible and expires
+observations after 120 seconds even when a refresh stalls. Compatible candidates
+still need mapping review and full preflight. Static previews cannot read or
+start local scans. The terminal command remains available in every environment.
 See the [dependency investigation](docs/bsc-dependency-status.md)
 for the October 25 snapshot and remaining deployment blockers.
 
