@@ -1,6 +1,13 @@
 /* No private keys, auto-signing, external scripts or credentials in this console. */
 import { submissionGuard } from './submission.js';
 import { walletSession, selectOKXProvider } from './wallet-session.js';
+// Older running services may serve the updated app before being restarted.
+// Diagnostics must not prevent the trading console from loading in that case.
+void import('./dependencies.js').catch(() => {
+  document.getElementById('dependency-state').textContent = 'SERVICE UPDATE REQUIRED';
+  document.getElementById('dependency-summary').textContent = 'Restart the local service to load saved-scan diagnostics. The existing console remains available.';
+  document.getElementById('reload-dependencies').disabled = true;
+});
 const $ = id => document.getElementById(id);
 let state, selectedJob, busy = false, noticeTimer;
 let guard, guardScope, submission, submissionError;

@@ -29,7 +29,7 @@
     "bsc:doctor": "node --import tsx src/bsc/doctor.ts",
     "bsc:dependencies": "node --import tsx src/bsc/dependency-probe.ts",
     "bsc:browser": "playwright test --config playwright.bsc.config.ts",
-    "bsc:check": "node --check site/bsc/app.js && node --check site/bsc/submission.js && node --check site/bsc/wallet-session.js && node --check site/bsc/deploy/app.js && npm run typecheck && npm test && npm run bsc:demo"
+    "bsc:check": "node --check site/bsc/app.js && node --check site/bsc/dependencies.js && node --check site/bsc/submission.js && node --check site/bsc/wallet-session.js && node --check site/bsc/deploy/app.js && npm run typecheck && npm test && npm run bsc:demo"
   },
   "devDependencies": {
     "@foundry-rs/anvil": "^1.7.1",

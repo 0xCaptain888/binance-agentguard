@@ -13,7 +13,8 @@ import { readSnapshot } from "../src/bsc/rebalancer.js";
 let directory: string;
 let app: Awaited<ReturnType<typeof startBscServer>>;
 before(async () => { directory = await mkdtemp(join(tmpdir(), "agentguard-test-"));
-  app = await startBscServer({ mode: "local", port: 0, journal: join(directory, "journal.json") }); });
+  app = await startBscServer({ mode: "local", port: 0, journal: join(directory, "journal.json"),
+    dependencyReportPath: join(directory, "dependencies.json") }); });
 after(async () => { await app?.close(); if (directory) await rm(directory, { recursive: true }); });
 async function post(path: string, input: unknown, origin = app.origin) {
   const response = await fetch(`${app.origin}/api/v1${path}`, { method: "POST", headers: { Origin: origin, "Content-Type": "application/json" }, body: JSON.stringify(input) });
@@ -32,6 +33,12 @@ test("HTTP rejects cross-origin mutation, invalid JSON and oversized bodies", as
   assert.equal(sessionModule.status, 200);
   assert.match(sessionModule.headers.get("content-type")!, /javascript/);
   assert.match(await sessionModule.text(), /export function walletSession/);
+  const dependenciesModule = await fetch(`${app.origin}/bsc/dependencies.js`);
+  assert.equal(dependenciesModule.status, 200);
+  assert.match(dependenciesModule.headers.get("content-type")!, /javascript/);
+  const scan = await (await fetch(`${app.origin}/api/v1/dependencies`)).json() as any;
+  assert.equal(scan.state, "NOT_CHECKED");
+  assert.equal(scan.deploymentReady, false); assert.equal(scan.financialTransactionCreated, false);
   assert.equal((await post("/plans", {}, "https://attacker.invalid")).status, 403);
   const invalid = await fetch(`${app.origin}/api/v1/plans`, { method: "POST", headers: { Origin: app.origin, "Content-Type": "application/json" }, body: "[" });
   assert.equal(invalid.status, 400);

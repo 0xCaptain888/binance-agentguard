@@ -12,7 +12,7 @@ vault is **not deployed**. The operator is still unconfigured; no delegated
 agent identity has been invented or inferred from the owner's address.
 
 The two providers independently returned identical dependency reads at BSC
-testnet block **138751338** on October 25, 2026 UTC. This is a historical
+testnet block **138753544** at **2026-10-25 00:58:19 UTC**. This is a historical
 snapshot; rerun the probe before making any deployment decision.
 
 ## Sources and chain reads
@@ -34,20 +34,27 @@ snapshot; rerun the probe before making any deployment decision.
 
 ## Candidate results
 
-All four candidates were quoted directly against WBNB in both directions at
-the configured $10 action limit and 1% oracle floor:
+The expanded scan inspected seven tokens (WBNB, CAKE, BUSD, USDT, USDC, HBTC,
+WBTC), eight feed candidates and all 21 unordered token combinations at a
+$10 action limit, 1% oracle floor and 3,600-second maximum oracle age.
+Ten direct pairs existed and yielded 20 quote directions. Eleven pairs did
+not exist. All reads completed; both providers agreed. No candidate passed
+every condition.
 
 | Candidate | Feed freshness | Direct-route observation | Ready |
 | --- | --- | --- | --- |
-| CAKE | Within 1 hour | CAKE → WBNB output about 0.00735 WBNB, below the approximately 0.01340 WBNB floor | No |
+| CAKE | Within 1 hour | CAKE → WBNB output about 0.00737 WBNB, below the approximately 0.01336 WBNB floor | No |
 | BUSD | Older than 1 hour | Reverse output far below floor; pool pricing diverged sharply from the feed | No |
-| USDT | Older than 1 hour | Direct quotes unavailable in both directions | No |
+| USDT | Older than 1 hour | WBNB direct pair does not exist | No |
 | USDC | Older than 1 hour | Both directions below the oracle floor | No |
+| HBTC / WBTC | BTC feed 5,189 seconds old | Both directions above floor, but freshness fails; wrapper/feed mappings remain unreviewed | No |
 
 The broader feed scan found BNB, LINK and CAKE fresh at inspection time.
 A fresh LINK feed alone does not establish a reviewed test token and direct
-pair. This investigation does not claim that every possible testnet pair was
-searched or that no compatible pair can exist.
+pair. Other existing non-WBNB pairs failed at least one quote direction or
+feed freshness. Eleven missing pairs are chain observations, not RPC failures.
+The search covers only the documented inventory, not every possible testnet
+asset or route.
 
 ## Repeat the read-only investigation
 
@@ -63,7 +70,18 @@ The first command does not require an operator, second token or deployed
 vault. It saves both provider responses, feed rounds/timestamps, quote inputs,
 outputs and floors to ignored `.runtime/bsc-dependencies.json`. Candidate
 inspection success means the reads agreed; **it never means deployment-ready**.
-RPC failures and disagreements produce a nonzero exit status.
+RPC failures, incomplete reads, outdated anchors and disagreements produce a
+nonzero exit status. A failed attempt replaces the prior saved report rather
+than leaving an old successful result in place.
+
+The local console includes **What is blocking deployment?**. Its
+`GET /api/v1/dependencies` response contains only known states, timestamps,
+policy and counts; raw token metadata, RPC URLs and arbitrary error messages
+are not exposed. **Reload saved scan** reads the file without making RPC or
+wallet requests. Run the command above for a new scan. Summaries expire after
+120 seconds and show `STALE_SNAPSHOT`; even a current compatible candidate
+shows `REVIEW_REQUIRED`, never deployment readiness. Static GitHub Pages
+previews cannot access this local API.
 
 Preflight now also retains raw oracle rounds and reports observed age versus
 the policy maximum. Two providers returning the same price from different

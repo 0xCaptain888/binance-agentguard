@@ -32,6 +32,39 @@ test("mobile: wallet entry visible without scrolling, readable layout and no hor
   await page.screenshot({ path: ".runtime/bsc-mobile.png", fullPage: true });
 });
 
+test("dependency diagnostics show saved blockers without a wallet request and replace stale success after failure", async ({ page }) => {
+  let failed = false;
+  await page.route("**/api/v1/dependencies", route => route.fulfill({ json: failed ? { state: "UNAVAILABLE" } : {
+    state: "STALE_SNAPSHOT", checkedAt: "2026-10-25T00:00:00.000Z", blockNumber: "123",
+    independentReadsAgree: true,
+    counts: { tokens: 7, pairs: 21, quoteDirections: 12, compatibleCandidates: 0 },
+    policy: { maxActionUsd: "10000000000000000000", maxSlippageBps: 100, maxOracleAgeSeconds: "3600" },
+    blockers: { staleOrInvalidFeeds: 4, missingPairs: 15, failedQuoteDirections: 6, rpcErrors: 0 }
+  } }));
+  await page.addInitScript(() => {
+    (window as any).okxwallet = { request: () => { throw new Error("Diagnostics must not request the wallet"); } };
+  });
+  await page.goto("/bsc/");
+  await expect(page.locator("#dependency-state")).toHaveText("STALE SNAPSHOT");
+  await expect(page.locator("#dependency-facts")).toContainText("7 tokens · 21 direct pairs");
+  await expect(page.locator("#dependency-facts")).toContainText("Stale or invalid price feeds");
+  await expect(page.locator("#dependency-summary")).toContainText("historical snapshot");
+  failed = true;
+  await page.locator("#reload-dependencies").click();
+  await expect(page.locator("#dependency-state")).toHaveText("UNAVAILABLE");
+  await expect(page.locator("#dependency-facts")).toBeEmpty();
+  await expect(page.locator("#reload-dependencies")).toBeEnabled();
+});
+
+test("an older service missing the diagnostics module still loads the local console", async ({ page }) => {
+  await page.route("**/bsc/dependencies.js", route => route.fulfill({ status: 404, body: "Not found" }));
+  await page.goto("/bsc/");
+  await expect(page.locator("#dependency-state")).toHaveText("SERVICE UPDATE REQUIRED");
+  await expect(page.locator("#reload-dependencies")).toBeDisabled();
+  await expect(page.locator("#value")).toHaveText("$100.00");
+  await expect(page.locator("#plan")).toBeEnabled();
+});
+
 test("local VERIFYING journal restores a retry control after reload even without live pricing", async ({ page }) => {
   await page.goto("/bsc/");
   await page.locator("#reset").click();

@@ -12,9 +12,10 @@ import { tokenAbi, vaultAbi } from "./abi.js";
 import { serviceBoundary, trustedHost, sameOrigin } from "./boundary.js";
 import { pendingMonitor } from "./operations.js";
 import { claimJournal } from "./journal-lock.js";
+import { readDependencySummary } from "./dependency-status.js";
 
 export type ServerOptions = { mode: "local" | "testnet"; port?: number; rpcUrl?: string; verifierRpcUrl?: string; vault?: Address; journal?: string;
-  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number; registrationHash?: Hash };
+  publicOrigin?: string; listenHost?: string; reconcileIntervalMs?: number; registrationHash?: Hash; dependencyReportPath?: string };
 class HttpError extends Error { constructor(public code: number, message: string) { super(message); } }
 const address = (value: unknown) => {
   if (typeof value !== "string" || !isAddress(value)) throw new HttpError(400, "Valid wallet address required");
@@ -110,6 +111,7 @@ export async function startBscServer(options: ServerOptions) {
         }
         if (req.method === "GET") {
           if (path === "/healthz") return reply(200, { live: true, mode: options.mode });
+          if (path === "/api/v1/dependencies") return reply(200, await readDependencySummary(options.dependencyReportPath));
           if (path === "/readyz" || path === "/api/v1/operations") {
             const health = await ready(), operations = monitor.summary();
             const ok = health.ready && !operations.frozen && !operations.errorCount && !operations.stalePending.length;
@@ -128,6 +130,7 @@ export async function startBscServer(options: ServerOptions) {
           const files: Record<string, [string, string]> = {
             "/": ["site/bsc/index.html", "text/html"], "/bsc/": ["site/bsc/index.html", "text/html"],
             "/bsc/app.js": ["site/bsc/app.js", "text/javascript"], "/bsc/style.css": ["site/bsc/style.css", "text/css"],
+            "/bsc/dependencies.js": ["site/bsc/dependencies.js", "text/javascript"],
             "/bsc/submission.js": ["site/bsc/submission.js", "text/javascript"],
             "/bsc/wallet-session.js": ["site/bsc/wallet-session.js", "text/javascript"],
             "/bsc/mark.svg": ["site/bsc/mark.svg", "image/svg+xml"]

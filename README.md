@@ -105,11 +105,20 @@ campaign eligibility. Missing configuration is reported as `BLOCKED`.
 
 `bsc:dependencies` works before a complete vault config exists. It uses the two
 RPC settings to inspect official PancakeSwap testnet router/WBNB candidates,
-seven Chainlink feed candidates and four WBNB direct routes at one canonical
-block. It compares both providers and writes `.runtime/bsc-dependencies.json`.
+eight Chainlink feed candidates and all 21 unordered combinations of seven
+test tokens at one canonical block, including combinations without WBNB.
+Existing direct pairs are quoted in both directions. It compares both
+providers and writes `.runtime/bsc-dependencies.json`.
 It never signs, broadcasts, fills configuration, approves a feed-to-token
 mapping or reports deployment readiness. Stale feeds and below-floor routes
-remain visible. See the [dependency investigation](docs/bsc-dependency-status.md)
+remain visible. Missing pairs, reverted quotes and failed RPC reads are
+reported separately; failed reads cannot pass verification merely because both
+providers fail equally. The console's **What is blocking deployment?** panel
+shows a sanitized saved-scan summary from `GET /api/v1/dependencies`. Reloading
+reads the saved file; run the command for a new chain scan. Snapshots older
+than 120 seconds are marked historical, and compatible candidates still need
+mapping review and full preflight. Static previews cannot read local scans.
+See the [dependency investigation](docs/bsc-dependency-status.md)
 for the October 25 snapshot and remaining deployment blockers.
 
 When `publicBaseUrl` is an HTTPS origin, the deployment console also prepares an
