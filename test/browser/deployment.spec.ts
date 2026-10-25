@@ -25,7 +25,7 @@ async function setup(page: Page) {
   } }));
   await page.addInitScript(({ owner, hash }) => {
     const w = window as any; w.walletStub = { chain: "0x61", account: owner, error: 0, sends: [] };
-    w.ethereum = { on() {}, removeListener() {}, async request(input: any) {
+    w.okxwallet = { isOkxWallet: true, on() {}, removeListener() {}, async request(input: any) {
       if (input.method === "eth_chainId") return w.walletStub.chain;
       if (["eth_requestAccounts", "eth_accounts"].includes(input.method)) return [w.walletStub.account];
       if (input.method === "eth_sendTransaction") {
@@ -43,6 +43,33 @@ async function ready(page: Page) {
   await page.locator("#connect").click(); await page.locator("#review-addresses").check(); await page.locator("#review-policy").check();
   await expect(page.locator("#deploy")).toBeEnabled();
 }
+test("OKX is used when MetaMask is the injected default", async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const w = window as any, okx = w.okxwallet;
+    w.metamaskCalls = 0;
+    const metamask = { isMetaMask: true, request() { w.metamaskCalls++; throw new Error('Wrong wallet'); } };
+    w.ethereum = metamask;
+    for (const [rdns, provider] of [['com.okex.wallet', okx], ['io.metamask', metamask]]) {
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', { detail: { info: { uuid: rdns, name: rdns, rdns }, provider } }));
+    }
+  });
+  await ready(page);
+  await expect(page.locator('#connect')).toContainText('OKX');
+  expect(await page.evaluate(() => (window as any).metamaskCalls)).toBe(0);
+});
+test("missing OKX shows instructions without requesting MetaMask accounts", async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => {
+    const w = window as any; w.metamaskCalls = 0;
+    delete w.okxwallet;
+    w.ethereum = { isMetaMask: true, request() { w.metamaskCalls++; } };
+  });
+  await page.locator('#connect').click();
+  await expect(page.locator('#notice')).toContainText('OKX Wallet not detected');
+  await expect(page.locator('#deploy')).toBeDisabled();
+  expect(await page.evaluate(() => (window as any).metamaskCalls)).toBe(0);
+});
 test("deployment wallet checks chain and owner and only sends after explicit review", async ({ page }) => {
   await setup(page);
   await page.evaluate(() => { (window as any).walletStub.chain = "0x38"; });

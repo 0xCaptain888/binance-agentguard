@@ -21,6 +21,8 @@ export async function inspectDeployment(client: PublicClient, config: Deployment
   check("recent_block", block.timestamp <= now + 30n && block.timestamp >= now - 120n,
     "The anchored block must be recent (within 120 seconds) and not over 30 seconds in the future.");
   const assets: { symbol: string; decimals: number; priceUsd: bigint }[] = [];
+  const oracles: { asset: number; feed: string; decimals: number; roundId: bigint; answer: bigint;
+    startedAt: bigint; updatedAt: bigint; answeredInRound: bigint; ageSeconds: bigint; maxAgeSeconds: number; fresh: boolean }[] = [];
   const codeHashes: Record<string, string> = {};
   let ownerBalance: bigint | null = null, gasEstimate: bigint | null = null, gasPrice: bigint | null = null;
   try {
@@ -52,7 +54,12 @@ export async function inspectDeployment(client: PublicClient, config: Deployment
       check(`asset${index}_metadata`, metadataOk, "Readable symbol and token/feed decimals between 0 and 18 are required.");
       const fresh = round[1] > 0n && round[3] > 0n && round[3] <= block.timestamp &&
         block.timestamp - round[3] <= BigInt(config.policy.maxOracleAge) && round[4] >= round[0];
-      check(`asset${index}_price`, fresh, "Oracle answer must be positive, fresh, not future-dated and from a completed round.");
+      const ageSeconds = block.timestamp - round[3];
+      oracles.push({ asset: index, feed, decimals: feedDecimals, roundId: round[0], answer: round[1],
+        startedAt: round[2], updatedAt: round[3], answeredInRound: round[4], ageSeconds,
+        maxAgeSeconds: config.policy.maxOracleAge, fresh });
+      check(`asset${index}_price`, fresh,
+        `Oracle age ${ageSeconds}s; maximum ${config.policy.maxOracleAge}s. Answer must be positive, timestamp nonzero and not future-dated, and round completed. Refresh the dependency; no cached price is substituted.`);
       if (metadataOk && fresh) assets[index] = { symbol, decimals, priceUsd: round[1] * 10n ** 18n / 10n ** BigInt(feedDecimals) };
     } catch { check(`asset${index}_readable`, false, "Token or oracle interface could not be read. No cached price is substituted."); }
   }
@@ -81,7 +88,7 @@ export async function inspectDeployment(client: PublicClient, config: Deployment
   check("canonical_block", (await client.getBlock({ blockNumber })).hash === block.hash, "The block hash must remain unchanged during inspection.");
   return { state: checks.every(c => c.passed) ? "READY" as const : "BLOCKED" as const, chainId,
     environment: chainId === 97 ? "BSC_TESTNET" : "LOCAL_EVM", campaignProof: false, financialTransactionCreated: false,
-    checkedAt: new Date().toISOString(), blockNumber, blockHash: block.hash, checks, assets, codeHashes,
+    checkedAt: new Date().toISOString(), blockNumber, blockHash: block.hash, checks, assets, oracles, codeHashes,
     gas: { ownerBalance, estimate: gasEstimate, gasPrice, bufferPercent: 20 },
     note: "Read-only compatibility checks at one block. Feed-to-asset mapping, router trust and token behavior still require human review. Not an audit, fill guarantee or campaign proof." };
 }
@@ -91,7 +98,7 @@ export async function deploymentPreflight(client: PublicClient, verifier: Public
   const independent = await inspectDeployment(verifier, config, chainId, primary.blockNumber);
   const sameBlock = primary.blockHash === independent.blockHash;
   // Gas price is a current provider estimate; anchored balances, assets and constructor gas must agree.
-  const facts = (r: typeof primary) => ({ assets: r.assets, codeHashes: r.codeHashes, balance: r.gas.ownerBalance, gas: r.gas.estimate, checks: r.checks });
+  const facts = (r: typeof primary) => ({ assets: r.assets, oracles: r.oracles, codeHashes: r.codeHashes, balance: r.gas.ownerBalance, gas: r.gas.estimate, checks: r.checks });
   const matchingReads = json(facts(primary)) === json(facts(independent));
   const canonical = await Promise.all([client.getBlock({ blockNumber: primary.blockNumber }), verifier.getBlock({ blockNumber: primary.blockNumber })]);
   const stillCanonical = canonical.every(b => b.hash === primary.blockHash);

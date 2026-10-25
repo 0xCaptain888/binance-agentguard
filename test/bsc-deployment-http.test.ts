@@ -21,6 +21,10 @@ test("deployment console serves unsigned data and blocks hostile origins, bad bo
   const response = await fetch(`${app.origin}/bsc/deploy/`);
   assert.equal(response.status, 200); assert.match(response.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
   assert.match(await response.text(), /Review & deploy in wallet/);
+  const walletModule = await fetch(`${app.origin}/bsc/wallet-session.js`);
+  assert.equal(walletModule.status, 200);
+  assert.match(walletModule.headers.get('content-type')!, /javascript/);
+  assert.match(await walletModule.text(), /selectOKXProvider/);
   const prepared = await (await fetch(`${app.origin}/api/v1/deployment`)).json() as any;
   assert.equal(prepared.transaction.from, config.owner); assert.equal(prepared.transaction.to, undefined);
   assert.equal(prepared.transaction.chainId, "0x61"); assert.equal(prepared.transaction.value, "0x0");

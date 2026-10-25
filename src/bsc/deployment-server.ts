@@ -30,6 +30,7 @@ export async function startDeploymentServer(client: PublicClient, verifier: Publ
         if (path === "/") { res.writeHead(302, { Location: "/bsc/deploy/" }); return res.end(); }
         const files: Record<string, [string, string]> = {
           "/bsc/deploy/": ["site/bsc/deploy/index.html", "text/html"], "/bsc/deploy/app.js": ["site/bsc/deploy/app.js", "text/javascript"],
+          "/bsc/wallet-session.js": ["site/bsc/wallet-session.js", "text/javascript"],
           "/bsc/style.css": ["site/bsc/style.css", "text/css"], "/bsc/mark.svg": ["site/bsc/mark.svg", "image/svg+xml"]
         };
         if (!files[path]) return reply(404, { error: "Not found" });

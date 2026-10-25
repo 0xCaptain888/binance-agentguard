@@ -38,7 +38,8 @@ async function simulatedTestnet(page: Page, behavior: 'ambiguous' | 'rejected' |
     browser.sendCount = 0; browser.walletBehavior = behavior; browser.walletAccount = account;
     const listeners = new Map<string, Set<() => void>>();
     browser.emitWallet = (event: string) => { for (const listener of [...listeners.get(event) || []]) listener(); };
-    browser.ethereum = {
+    browser.okxwallet = {
+      isOkxWallet: true,
       on(event: string, listener: () => void) { const set = listeners.get(event) || new Set(); set.add(listener); listeners.set(event, set); },
       removeListener(event: string, listener: () => void) { listeners.get(event)?.delete(listener); },
       request: async ({ method }: { method: string }) => {
@@ -105,7 +106,7 @@ test('wallet switch during sign-in cancels the old login before session exchange
   await page.locator('#connect').click();
   await expect.poll(() => page.evaluate(() => typeof (window as any).resolveSign)).toBe('function');
   await page.evaluate(() => { const browser = window as any; browser.walletAccount = `0x${'55'.repeat(20)}`; browser.emitWallet('accountsChanged'); browser.resolveSign(); });
-  await expect(page.locator('#connect')).toHaveText('Connect Wallet');
+  await expect(page.locator('#connect')).toHaveText('Connect OKX Wallet');
   await expect(page.locator('#connect')).toBeEnabled();
   await expect(page.locator('#plan')).toBeDisabled();
   expect(fixture.exchanges()).toBe(0);
@@ -115,7 +116,7 @@ test('wallet switch during sign-in cancels the old login before session exchange
 test('expired server session disables wallet actions and can be reconnected', async ({ page }) => {
   const fixture = await simulatedTestnet(page, 'success');
   fixture.expireNextPlan(); await page.locator('#plan').click();
-  await expect(page.locator('#connect')).toHaveText('Connect Wallet');
+  await expect(page.locator('#connect')).toHaveText('Connect OKX Wallet');
   for (const id of ['plan', 'pause', 'verify']) await expect(page.locator(`#${id}`)).toBeDisabled();
   await page.locator('#connect').click();
   await expect(page.locator('#plan')).toBeEnabled();
@@ -126,7 +127,7 @@ test('expired server session disables wallet actions and can be reconnected', as
 
 test('client session timeout disables actions without waiting for an API failure', async ({ page }) => {
   await simulatedTestnet(page, 'success', { sessionDuration: 2000 });
-  await expect(page.locator('#connect')).toHaveText('Connect Wallet', { timeout: 7000 });
+  await expect(page.locator('#connect')).toHaveText('Connect OKX Wallet', { timeout: 7000 });
   await expect(page.locator('#plan')).toBeDisabled();
   await expect(page.locator('#pause')).toBeDisabled();
   await expect(page.locator('#notice')).toContainText('expired');
@@ -136,7 +137,7 @@ test('wallet switch after submission saves the transaction hash for recovery and
   const { key } = await simulatedTestnet(page, 'success');
   await page.evaluate(() => { (window as any).switchOnSend = true; });
   await page.locator('#execute').click();
-  await expect(page.locator('#connect')).toHaveText('Connect Wallet');
+  await expect(page.locator('#connect')).toHaveText('Connect OKX Wallet');
   await expect(page.locator('#submission-recovery')).toBeVisible();
   await expect(page.locator('#submission-detail')).toContainText(hash);
   await expect(page.locator('#plan')).toBeDisabled();

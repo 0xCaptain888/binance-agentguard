@@ -1,3 +1,4 @@
+import { selectOKXProvider } from '../wallet-session.js';
 const $ = id => document.getElementById(id);
 let prepared, provider, account, attempted = false, busy = false, proof, timer, preflight, preflightExpires = 0;
 let registration, registrationAttempted = false, registrationProof;
@@ -24,7 +25,7 @@ function saveRegistrationAttempt(hash) {
 }
 function update() {
   const owner = prepared && account?.toLowerCase() === prepared.config.owner.toLowerCase();
-  $('connect').disabled = busy || !prepared; $('connect').textContent = account ? `${account.slice(0, 8)}… · Disconnect` : 'Connect Wallet';
+  $('connect').disabled = busy || !prepared; $('connect').textContent = account ? `OKX · ${account.slice(0, 8)}… · Disconnect` : 'Connect OKX Wallet';
   $('wallet-status').textContent = account ? owner ? 'Configured owner connected. Chain is checked again before sending.' : 'This wallet is not the configured owner.' : 'Connect the configured owner wallet on chain 97.';
   const fresh = preflight?.state === 'READY' && Date.now() < preflightExpires;
   $('deploy').disabled = busy || !owner || attempted || !fresh || !$('review-addresses').checked || !$('review-policy').checked;
@@ -99,17 +100,11 @@ async function assertWallet() {
 function changed() { account = undefined; update(); notice('Wallet changed. Reconnect before signing.'); }
 async function chooseProvider() {
   window.dispatchEvent(new Event('eip6963:requestProvider')); await new Promise(resolve => setTimeout(resolve, 100));
-  const entries = [...wallets.values()]; if (entries.length < 2) return entries[0]?.provider || window.ethereum;
-  const dialog = element('dialog', undefined, 'wallet-dialog'); dialog.append(element('h2', 'Choose your wallet'));
-  return new Promise(resolve => {
-    for (const entry of entries) { const button = element('button', entry.info.name, 'secondary'); button.addEventListener('click', () => { resolve(entry.provider); dialog.close(); }); dialog.append(button); }
-    const cancel = element('button', 'Cancel', 'text-button'); cancel.addEventListener('click', () => dialog.close()); dialog.append(cancel);
-    dialog.addEventListener('close', () => { dialog.remove(); resolve(undefined); }); document.body.append(dialog); dialog.showModal();
-  });
+  return selectOKXProvider(wallets.values(), window.okxwallet, window.ethereum);
 }
 $('connect').addEventListener('click', () => work(async () => {
   if (account) { account = undefined; return; }
-  provider = await chooseProvider(); if (!provider) throw new Error('Use a browser with an EVM wallet extension.');
+  provider = await chooseProvider();
   account = (await provider.request({ method: 'eth_requestAccounts' }))[0];
   try { await assertWallet(); } catch (error) { account = undefined; throw error; }
   provider.removeListener?.('accountsChanged', changed); provider.removeListener?.('chainChanged', changed);

@@ -67,10 +67,16 @@ Browser screenshots are test artifacts, not campaign evidence.
 The BSC testnet path is wallet-signed and keyless on the server. It requires a
 reviewed vault deployment plus two independent HTTPS RPC providers:
 
+The BSC console and deployment page connect explicitly through **OKX Wallet**.
+When multiple wallet extensions are installed, only the OKX provider is selected.
+Open the local URL in a browser with the OKX extension enabled and select BNB Smart Chain
+Testnet (97). The isolated local lab needs no wallet.
+
 ```bash
 cp config/bsc-testnet.example.json config/bsc-testnet.json
 # configure public addresses and copy .env.example to .env; set both HTTPS RPCs
 npm run bsc:doctor
+npm run bsc:dependencies
 npm run bsc:doctor -- --online
 npm run bsc:deploy-console -- config/bsc-testnet.json
 # open the printed /bsc/deploy/ URL; review, confirm in the owner wallet, verify
@@ -96,6 +102,15 @@ with a 20% balance buffer. The deployment console shows these checks, expires
 readiness after 60 seconds, and rechecks before opening the wallet. Passing
 does not certify the feed-to-asset mapping, router trust, a future fill or
 campaign eligibility. Missing configuration is reported as `BLOCKED`.
+
+`bsc:dependencies` works before a complete vault config exists. It uses the two
+RPC settings to inspect official PancakeSwap testnet router/WBNB candidates,
+seven Chainlink feed candidates and four WBNB direct routes at one canonical
+block. It compares both providers and writes `.runtime/bsc-dependencies.json`.
+It never signs, broadcasts, fills configuration, approves a feed-to-token
+mapping or reports deployment readiness. Stale feeds and below-floor routes
+remain visible. See the [dependency investigation](docs/bsc-dependency-status.md)
+for the October 25 snapshot and remaining deployment blockers.
 
 When `publicBaseUrl` is an HTTPS origin, the deployment console also prepares an
 ERC-8004 BSC Testnet `register(string agentURI)` transaction for the official

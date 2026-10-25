@@ -1,6 +1,6 @@
 /* No private keys, auto-signing, external scripts or credentials in this console. */
 import { submissionGuard } from './submission.js';
-import { walletSession } from './wallet-session.js';
+import { walletSession, selectOKXProvider } from './wallet-session.js';
 const $ = id => document.getElementById(id);
 let state, selectedJob, busy = false, noticeTimer;
 let guard, guardScope, submission, submissionError;
@@ -72,7 +72,7 @@ function render() {
     }
   } catch (error) { submissionError = error.message; }
   text('network', local ? 'LOCAL EVM · MOCK ASSETS' : 'BSC TESTNET · CHAIN 97');
-  text('connect', local ? 'Local lab · No wallet needed' : account ? `${short(account)} · Disconnect` : 'Connect Wallet');
+  text('connect', local ? 'Local lab · No wallet needed' : account ? `OKX · ${short(account)} · Disconnect` : 'Connect OKX Wallet');
   $('connect').disabled = local || busy;
   text('mode-note', state.note);
   text('runner-state', frozen ? 'Runner frozen' : s.paused ? 'Vault paused' : !priced ? 'Price source unavailable' : 'Ready to plan');
@@ -187,22 +187,11 @@ async function verifyCurrent(hashValue, job = selectedJob, submittedGuard = guar
 async function chooseProvider() {
   window.dispatchEvent(new Event('eip6963:requestProvider'));
   await new Promise(resolve => setTimeout(resolve, 100));
-  const entries = [...wallets.values()];
-  if (entries.length > 1) {
-    const dialog = node('dialog', 'wallet-dialog'); dialog.append(node('h2', '', 'Choose your wallet'));
-    return new Promise(resolve => {
-      for (const entry of entries) { const button = node('button', 'secondary', entry.info.name);
-        button.addEventListener('click', () => { dialog.close(); dialog.remove(); resolve(entry.provider); }); dialog.append(button); }
-      const cancel = node('button', 'text-button', 'Cancel'); cancel.addEventListener('click', () => dialog.close()); dialog.append(cancel);
-      dialog.addEventListener('cancel', () => { dialog.remove(); resolve(undefined); });
-      dialog.addEventListener('close', () => { dialog.remove(); resolve(undefined); }); document.body.append(dialog); dialog.showModal();
-    });
-  }
-  return entries[0]?.provider || window.ethereum;
+  return selectOKXProvider(wallets.values(), window.okxwallet, window.ethereum);
 }
 $('connect').addEventListener('click', () => work(async () => {
   if (wallet.token()) { wallet.disconnect(); return; }
-  const provider = await chooseProvider(); if (!provider) throw new Error('Open this console in a browser with an EVM wallet extension.');
+  const provider = await chooseProvider();
   await wallet.connect(provider);
   notify('Wallet session connected. Signing in does not approve tokens.');
 }));

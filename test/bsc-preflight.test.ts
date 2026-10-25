@@ -57,7 +57,27 @@ test("stale, negative and future oracle answers block readiness without substitu
     const report = await inspectDeployment(f.client, config, 31337);
     assert.equal(report.state, "BLOCKED"); assert.equal(report.checks.find(c => c.name === "asset0_price")?.passed, false);
     assert.equal(report.checks.find(c => c.name === "route_prerequisites")?.passed, false);
+    const oracle = report.oracles.find(o => o.asset === 0)!;
+    assert.equal(oracle.feed, config.feed0); assert.equal(oracle.fresh, false);
+    assert.equal(oracle.maxAgeSeconds, config.policy.maxOracleAge);
+    if (kind === "stale") assert.ok(oracle.ageSeconds > BigInt(config.policy.maxOracleAge));
+    if (kind === "future") assert.ok(oracle.ageSeconds < 0n);
+    if (kind === "negative") assert.equal(oracle.answer, -1n);
+    assert.match(report.checks.find(c => c.name === "asset0_price")!.detail, /Oracle age .*maximum/);
   });
+});
+test("same-price oracle rounds with different provenance cannot pass independent verification", async () => {
+  const changedRound = override({ readContract: async (args: any) => {
+    const value = await f.client.readContract(args);
+    if (args.functionName !== "latestRoundData") return value;
+    const round = value as readonly bigint[];
+    return [round[0] + 1n, round[1], round[2], round[3], round[4] + 1n];
+  } });
+  const report = await deploymentPreflight(f.client, changedRound, config, 31337);
+  assert.equal(report.primary.state, "READY");
+  assert.equal(report.independent.state, "READY");
+  assert.equal(report.state, "BLOCKED");
+  assert.equal(report.matchingReads, false);
 });
 test("route below the oracle floor blocks both directions even with a valid constructor", async () => isolated(async () => {
   await f.write(f.router, f.artifacts.TestRouter.abi, "setOutputBps", [9000n]);

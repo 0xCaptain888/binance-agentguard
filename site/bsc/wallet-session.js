@@ -1,4 +1,22 @@
 /* Session credentials stay in memory. An invalidated wallet cannot resume an old login. */
+// Provider metadata is self-reported, not proof of extension authenticity.
+export function selectOKXProvider(announced, okxwallet, ethereum) {
+  const entries = [...announced];
+  const isOKX = provider => provider?.isOkxWallet === true || provider?.isOKExWallet === true;
+  const matches = [...new Set(entries.filter(entry => entry.info?.rdns === 'com.okex.wallet'
+    && typeof entry.provider?.request === 'function').map(entry => entry.provider))];
+  if (matches.length > 1) throw new Error('Multiple OKX Wallet providers detected. Enable only the OKX extension you intend to use, then reload.');
+  if (matches.length === 1) return matches[0];
+  // Legacy fallback only when discovery did not identify this provider as another wallet.
+  const candidates = [okxwallet, ...(Array.isArray(ethereum?.providers) ? ethereum.providers : [ethereum])];
+  const legacy = [...new Set(candidates.filter(provider => isOKX(provider)
+    && typeof provider.request === 'function'
+    && !entries.some(entry => entry.provider === provider && entry.info?.rdns !== 'com.okex.wallet')))];
+  if (legacy.length > 1) throw new Error('Multiple OKX Wallet providers detected. Enable only the OKX extension you intend to use, then reload.');
+  if (legacy.length === 1) return legacy[0];
+  throw new Error('OKX Wallet not detected. Enable the OKX Wallet extension for this site and reload. If this browser has no extension, open this same URL in Chrome with OKX Wallet installed.');
+}
+
 export function walletSession({ request, onChange = () => {}, clock = Date.now,
   setTimer = setTimeout, clearTimer = clearTimeout }) {
   let current, timer;
