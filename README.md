@@ -132,8 +132,10 @@ numeric and decimal-string `97` responses emitted by some OKX bridge versions,
 while rejecting malformed or unsafe values. During OKX connection prompts the
 guard also ignores repeated `accountsChanged`/`chainChanged` events that carry
 the already-active account and BSC Testnet chain; a real account switch, wrong
-network or disconnect still invalidates the session. The isolated local lab
-needs no wallet.
+network or disconnect still invalidates the session. If the active provider is
+on another chain, connection first requests an OKX switch to `0x61` and can
+request adding the documented BSC Testnet network when the wallet does not
+know it yet. The isolated local lab needs no wallet.
 
 ```bash
 cp config/bsc-testnet.example.json config/bsc-testnet.json

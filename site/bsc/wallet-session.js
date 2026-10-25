@@ -38,6 +38,42 @@ export function chainIdNumber(value) {
   return undefined;
 }
 
+const BSC_TESTNET_PARAMS = {
+  chainId: '0x61',
+  chainName: 'BNB Smart Chain Testnet',
+  nativeCurrency: { name: 'tBNB', symbol: 'tBNB', decimals: 18 },
+  rpcUrls: ['https://bsc-testnet-dataseed.bnbchain.org'],
+  blockExplorerUrls: ['https://testnet.bscscan.com']
+};
+
+async function switchToBscTestnet(context, capture) {
+  const chain = await context.provider.request({ method: 'eth_chainId' });
+  capture(context);
+  if (chainIdNumber(chain) === 97) return;
+  context.switching = true;
+  try {
+    try {
+      await context.provider.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: BSC_TESTNET_PARAMS.chainId }]
+      });
+    } catch (error) {
+      if (Number(error?.code) !== 4902) throw error;
+      await context.provider.request({
+        method: 'wallet_addEthereumChain',
+        params: [BSC_TESTNET_PARAMS]
+      });
+    }
+  } catch (error) {
+    const reported = typeof chain === 'string' || typeof chain === 'number' || typeof chain === 'bigint'
+      ? String(chain) : 'unrecognized';
+    throw new Error(`Switch to BNB Smart Chain Testnet (97), then reconnect. Wallet reported chain ID ${reported}.`);
+  } finally {
+    context.switching = false;
+  }
+  capture(context);
+}
+
 // Deployment setup has no server login. Bind its asynchronous checks to one
 // connection so a late response cannot revive an invalidated wallet.
 export function testnetWalletConnection({ onChange = () => {} } = {}) {
@@ -75,7 +111,7 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
     disconnect: () => clear(current),
     async connect(provider) {
       clear(current);
-      const context = { provider, listeners: [], account: undefined, pendingEvents: [] };
+      const context = { provider, listeners: [], account: undefined, pendingEvents: [], switching: false };
       current = context;
       try {
         const onEvent = (event, args) => {
@@ -94,7 +130,7 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
             const next = args[0];
             if (!Array.isArray(next) || typeof next[0] !== 'string'
               || next[0].toLowerCase() !== context.account.toLowerCase()) clear(context, changed);
-          } else if (event === 'chainChanged' && chainIdNumber(args[0]) !== 97) {
+          } else if (event === 'chainChanged' && !context.switching && chainIdNumber(args[0]) !== 97) {
             clear(context, changed);
           }
         };
@@ -109,6 +145,7 @@ export function testnetWalletConnection({ onChange = () => {} } = {}) {
         context.account = accounts[0];
         for (const [event, args] of context.pendingEvents.splice(0)) onEvent(event, args);
         capture(context);
+        await switchToBscTestnet(context, capture);
         await check(context);
         onChange();
         return context;
@@ -166,7 +203,7 @@ export function walletSession({ request, onChange = () => {}, clock = Date.now,
   }
   async function connect(provider) {
     clear(current);
-    const context = { provider, listeners: [], account: undefined, token: undefined, expires: 0, pendingEvents: [] };
+    const context = { provider, listeners: [], account: undefined, token: undefined, expires: 0, pendingEvents: [], switching: false };
     current = context;
     try {
       const onEvent = (event, args) => {
@@ -182,7 +219,7 @@ export function walletSession({ request, onChange = () => {}, clock = Date.now,
           const next = args[0];
           if (!Array.isArray(next) || typeof next[0] !== 'string'
             || next[0].toLowerCase() !== context.account.toLowerCase()) clear(context, changed);
-        } else if (event === 'chainChanged' && chainIdNumber(args[0]) !== 97) {
+        } else if (event === 'chainChanged' && !context.switching && chainIdNumber(args[0]) !== 97) {
           clear(context, changed);
         }
       };
@@ -196,6 +233,7 @@ export function walletSession({ request, onChange = () => {}, clock = Date.now,
       context.account = accounts[0];
       for (const [event, args] of context.pendingEvents.splice(0)) onEvent(event, args);
       assert(context, false);
+      await switchToBscTestnet(context, context => assert(context, false));
       await check(context, false);
       const challenge = await request('/auth/challenge', { address: context.account }, null);
       assert(context, false);

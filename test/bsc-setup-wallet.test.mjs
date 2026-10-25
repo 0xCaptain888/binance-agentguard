@@ -103,6 +103,16 @@ test('setup accepts decimal and numeric BSC testnet chain ids', async () => {
   }
 });
 
+test('setup requests an OKX switch when the active provider chain is wrong', async () => {
+  const h = harness(); let switched = false;
+  h.hooks.eth_chainId = () => switched ? '0x61' : '0x38';
+  h.hooks.wallet_switchEthereumChain = () => { switched = true; };
+  const context = await h.wallet.connect(h.provider);
+  assert.equal(await h.wallet.check(context), context);
+  assert.equal(switched, true);
+  assert.equal(h.wallet.account(), owner);
+});
+
 test('an old prompt failure cannot clear a newer setup connection', async () => {
   const h = harness(), gate = deferred();
   h.hooks.eth_requestAccounts = () => gate.promise;

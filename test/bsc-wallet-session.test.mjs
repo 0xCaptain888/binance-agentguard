@@ -103,6 +103,16 @@ test('wallet sessions accept decimal and numeric BSC testnet chain ids', async (
   }
 });
 
+test('wallet sessions request an OKX switch before signing when the active chain is wrong', async () => {
+  const h = harness(); let switched = false;
+  h.hooks.eth_chainId = () => switched ? '0x61' : '0x38';
+  h.hooks.wallet_switchEthereumChain = () => { switched = true; };
+  const context = await h.wallet.connect(h.provider);
+  assert.equal(await h.wallet.check(context), context);
+  assert.equal(switched, true);
+  assert.equal(h.wallet.account(), account);
+});
+
 test('session returned after wallet invalidation is revoked and cannot resurrect the old account', async () => {
   const h = harness(), gate = deferred(), entered = deferred();
   h.hooks.exchange = () => { entered.resolve(); return gate.promise; };
