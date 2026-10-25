@@ -2,7 +2,7 @@ import test, { before, after } from "node:test";
 import assert from "node:assert/strict";
 import { getContractAddress, parseUnits, type Address, type PublicClient, type Hash } from "viem";
 import { controlledFixture, type ControlledFixture } from "./support/controlled-fixture.js";
-import { controlledOwner, controlledAbi, controlledDeploymentData, prepareControlledEnvironment,
+import { assertControlledRetryNonce, controlledOwner, controlledAbi, controlledDeploymentData, prepareControlledEnvironment,
   reconcileControlledPreparations, verifyControlledEnvironment, controlledVaultConfig, dependencyDisclosure,
   prepareControlledRefresh, verifyControlledRefresh } from "../src/bsc/controlled.js";
 import { expectedRuntimeCode } from "../src/bsc/compiler.js";
@@ -21,11 +21,18 @@ test("controlled preparation is chain-97-only, recent, funded and never broadcas
   const prepared = await prepareControlledEnvironment(f.client, f.owner);
   assert.equal(prepared.transaction.data, controlledDeploymentData(f.owner));
   assert.equal(prepared.transaction.value, "0x0"); assert.equal(prepared.transaction.chainId, "0x61");
+  assert.equal(prepared.transaction.type, "0x0");
+  assert.equal(BigInt(prepared.transaction.gas), prepared.gas.limit);
+  assert.equal(BigInt(prepared.transaction.gasPrice), prepared.gas.gasPrice);
+  assert.equal(prepared.gas.bufferedCost, prepared.gas.limit * prepared.gas.gasPrice);
+  assert.equal(prepared.initCodeBytes, (prepared.transaction.data.length - 2) / 2);
   assert.equal(prepared.dependencyMode, "CONTROLLED_TEST_ASSETS"); assert.equal(prepared.marketEvidence, false);
   assert.equal(await f.client.getTransactionCount({ address: f.owner }), nonce);
   assert.throws(() => controlledOwner("0x0000000000000000000000000000000000000000"));
   await assert.rejects(() => prepareControlledEnvironment(override({ getChainId: async () => 56 }), f.owner), /97 only/);
   await assert.rejects(() => prepareControlledEnvironment(override({ getBalance: async () => 0n }), f.owner), /Insufficient/);
+  await assert.rejects(() => prepareControlledEnvironment(override({ getGasPrice: async () => 0n }), f.owner), /Insufficient/);
+  await assert.rejects(() => prepareControlledEnvironment(override({ estimateGas: async () => (await f.client.getBlock()).gasLimit }), f.owner), /block gas limit/);
   await assert.rejects(() => prepareControlledEnvironment(override({ getCode: async () => "0x01" }), f.owner), /EOA/);
   await assert.rejects(() => prepareControlledEnvironment(override({ getBlock: async () => ({ number: 1n, hash: "0x01", timestamp: 1n }) }), f.owner), /Recent/);
   await assert.rejects(() => prepareControlledEnvironment(f.client, f.owner, prepared.blockNumber + 1n));
@@ -37,12 +44,15 @@ test("independent preparation requires one anchor, matching balance and gas esti
   const primary = await prepareControlledEnvironment(f.client, f.owner);
   const independent = await prepareControlledEnvironment(f.client, f.owner, primary.blockNumber);
   const maxGasPrice = primary.gas.gasPrice + 1n;
-  const reconciled = reconcileControlledPreparations(primary, {
-    ...independent, gas: { ...independent.gas, gasPrice: maxGasPrice }
+  const withPrice = (gasPrice: bigint) => ({ ...independent,
+    gas: { ...independent.gas, gasPrice, bufferedCost: independent.gas.limit * gasPrice },
+    transaction: { ...independent.transaction, gasPrice: `0x${gasPrice.toString(16)}` }
   });
+  const reconciled = reconcileControlledPreparations(primary, withPrice(maxGasPrice));
   assert.equal(reconciled.independentChecked, true);
   assert.equal(reconciled.gas.gasPrice, maxGasPrice);
-  assert.equal(reconciled.gas.bufferedCost, (primary.gas.estimate * maxGasPrice * 120n + 99n) / 100n);
+  assert.equal(reconciled.gas.bufferedCost, primary.gas.limit * maxGasPrice);
+  assert.equal(BigInt(reconciled.transaction.gasPrice), maxGasPrice);
   assert.throws(() => reconcileControlledPreparations(primary, { ...independent, blockHash: `0x${"ab".repeat(32)}` as Hash }), /disagrees/);
   assert.throws(() => reconcileControlledPreparations(primary, {
     ...independent, gas: { ...independent.gas, ownerBalance: independent.gas.ownerBalance + 1n }
@@ -50,9 +60,41 @@ test("independent preparation requires one anchor, matching balance and gas esti
   assert.throws(() => reconcileControlledPreparations(primary, {
     ...independent, gas: { ...independent.gas, estimate: independent.gas.estimate + 1n }
   }), /disagrees/);
+  assert.throws(() => reconcileControlledPreparations(primary, withPrice(primary.gas.ownerBalance)), /exceeds/);
   assert.throws(() => reconcileControlledPreparations(primary, {
-    ...independent, gas: { ...independent.gas, gasPrice: primary.gas.ownerBalance }
-  }), /exceeds/);
+    ...independent, transaction: { ...independent.transaction, gasPrice: "0x0" }
+  }), /disagrees/);
+  assert.throws(() => reconcileControlledPreparations(primary, {
+    ...independent, transaction: { ...independent.transaction, gas: "0x1" }
+  }), /disagrees/);
+});
+test("the exact prepared legacy deployment envelope mines and independently verifies on an isolated chain", async () => {
+  const primary = await prepareControlledEnvironment(f.client, f.owner);
+  const independent = await prepareControlledEnvironment(f.client, f.owner, primary.blockNumber);
+  const prepared = reconcileControlledPreparations(primary, independent);
+  const nonce = await f.client.getTransactionCount({ address: f.owner, blockTag: "pending" });
+  const hash = await f.rpc("eth_sendTransaction", [{ ...prepared.transaction, nonce: `0x${nonce.toString(16)}` }]) as Hash;
+  const receipt = await f.wait(hash); assert.equal(receipt.status, "success");
+  await f.rpc("evm_mine");
+  const tx = await f.client.getTransaction({ hash });
+  assert.equal(tx.type, "legacy");
+  assert.equal(tx.gasPrice, prepared.gas.gasPrice); assert.equal(tx.gas, prepared.gas.limit);
+  assert.equal((await verifyControlledEnvironment(f.client, f.client, f.owner, hash, nonce)).state, "VERIFIED");
+});
+test("same-nonce recovery checks latest and pending on both RPCs without broadcasting", async () => {
+  const nonce = await f.client.getTransactionCount({ address: f.owner, blockTag: "pending" });
+  await assertControlledRetryNonce(f.client, f.client, f.owner, nonce);
+  await assert.rejects(() => assertControlledRetryNonce(f.client, f.client, f.owner, -1), /Valid saved/);
+  await assert.rejects(() => assertControlledRetryNonce(f.client, f.client, f.owner, nonce + 1), /Saved nonce/);
+  await assert.rejects(() => assertControlledRetryNonce(f.client, override({ getChainId: async () => 56 }), f.owner, nonce), /97 only/);
+  for (const tag of ["latest", "pending"]) {
+    const advanced = override({ getTransactionCount: async ({ blockTag }: any) => blockTag === tag ? nonce + 1 : nonce });
+    await assert.rejects(() => assertControlledRetryNonce(f.client, advanced, f.owner, nonce), /Saved nonce/);
+    await assert.rejects(() => assertControlledRetryNonce(advanced, f.client, f.owner, nonce), /Saved nonce/);
+  }
+  await assert.rejects(() => assertControlledRetryNonce(f.client, override({ getTransactionCount: async () => undefined }), f.owner, nonce), /Saved nonce/);
+  await assert.rejects(() => assertControlledRetryNonce(f.client, override({ getTransactionCount: async () => { throw new Error("Unavailable"); } }), f.owner, nonce), /Unavailable/);
+  assert.equal(await f.client.getTransactionCount({ address: f.owner, blockTag: "pending" }), nonce);
 });
 test("real creation attests exact immutable runtime and all five deterministic child addresses", async () => {
   const { hash, address } = await f.deploy(); await f.rpc("evm_mine");

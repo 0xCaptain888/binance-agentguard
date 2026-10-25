@@ -23,6 +23,7 @@ export function controlledOwner(value: unknown): Address {
 export function controlledDeploymentData(owner: Address) {
   return encodeDeployData({ ...compileContracts().ControlledEnvironment, args: [controlledOwner(owner)] });
 }
+const quantity = (value: bigint) => `0x${value.toString(16)}`;
 export async function prepareControlledEnvironment(client: PublicClient, owner: Address, anchorBlock?: bigint) {
   owner = controlledOwner(owner);
   if (await client.getChainId() !== 97) throw new Error("BSC testnet 97 only");
@@ -36,13 +37,18 @@ export async function prepareControlledEnvironment(client: PublicClient, owner: 
     client.estimateGas({ account: owner, data: controlledDeploymentData(owner), value: 0n, blockNumber: block.number }), client.getGasPrice()
   ]);
   if (code && code !== "0x") throw new Error("EOA owner required");
-  const bufferedCost = (gas * gasPrice * 120n + 99n) / 100n;
+  const gasLimit = (gas * 120n + 99n) / 100n, bufferedCost = gasLimit * gasPrice;
   if (gas <= 0n || gasPrice <= 0n || balance < bufferedCost) throw new Error("Insufficient native test gas for estimate plus 20% buffer");
+  if (gasLimit > block.gasLimit) throw new Error("Buffered deployment gas exceeds the block gas limit");
   if ((await client.getBlock({ blockNumber: block.number })).hash !== block.hash) throw new Error("Canonical anchor changed");
   return { status: "UNSIGNED_CONTROLLED_TESTNET_DEPLOYMENT", ...controlledDisclosure, chainId: 97,
     owner, blockNumber: block.number, blockHash: block.hash, checkedAt: new Date().toISOString(),
-    gas: { estimate: gas, gasPrice, bufferedCost, ownerBalance: balance }, initCodeHash: keccak256(controlledDeploymentData(owner)),
-    transaction: { from: owner, data: controlledDeploymentData(owner), value: "0x0", chainId: "0x61" },
+    gas: { estimate: gas, limit: gasLimit, gasPrice, bufferedCost, ownerBalance: balance },
+    initCodeHash: keccak256(controlledDeploymentData(owner)), initCodeBytes: (controlledDeploymentData(owner).length - 2) / 2,
+    // Supply the complete legacy envelope. Some wallet bridges otherwise
+    // construct a type-2 deployment with missing/zero fee fields.
+    transaction: { from: owner, data: controlledDeploymentData(owner), value: "0x0", chainId: "0x61",
+      type: "0x0", gas: quantity(gasLimit), gasPrice: quantity(gasPrice) },
     financialTransactionCreated: false };
 }
 
@@ -50,20 +56,28 @@ export function reconcileControlledPreparations(primary: Awaited<ReturnType<type
   independent: Awaited<ReturnType<typeof prepareControlledEnvironment>>) {
   const sameAnchor = primary.chainId === independent.chainId && primary.owner.toLowerCase() === independent.owner.toLowerCase() &&
     primary.blockNumber === independent.blockNumber && primary.blockHash === independent.blockHash;
+  // Gas prices are sampled outside the anchor and may legitimately differ.
+  // Every other envelope field must match, including the actual gas limit.
   const sameDeployment = primary.initCodeHash === independent.initCodeHash &&
-    json(primary.transaction) === json(independent.transaction);
+    primary.initCodeBytes === independent.initCodeBytes &&
+    json({ ...primary.transaction, gasPrice: "" }) === json({ ...independent.transaction, gasPrice: "" });
   const sameFundingAndEstimate = primary.gas.ownerBalance === independent.gas.ownerBalance &&
-    primary.gas.estimate === independent.gas.estimate;
-  if (!sameAnchor || !sameDeployment || !sameFundingAndEstimate)
+    primary.gas.estimate === independent.gas.estimate && primary.gas.limit === independent.gas.limit;
+  const consistentFees = [primary, independent].every(item => item.gas.gasPrice > 0n &&
+    item.gas.limit === (item.gas.estimate * 120n + 99n) / 100n &&
+    item.transaction.type === "0x0" && item.transaction.gas === quantity(item.gas.limit) &&
+    item.transaction.gasPrice === quantity(item.gas.gasPrice) && item.gas.bufferedCost === item.gas.limit * item.gas.gasPrice);
+  if (!sameAnchor || !sameDeployment || !sameFundingAndEstimate || !consistentFees)
     throw new Error("Independent preparation disagrees on anchor, deployment, balance or gas estimate");
 
   const gasPrice = primary.gas.gasPrice > independent.gas.gasPrice ? primary.gas.gasPrice : independent.gas.gasPrice;
-  const bufferedCost = (primary.gas.estimate * gasPrice * 120n + 99n) / 100n;
+  const bufferedCost = primary.gas.limit * gasPrice;
   if (primary.gas.ownerBalance < bufferedCost)
     throw new Error("Independent gas-price maximum exceeds the owner's 20% buffered test-gas balance");
   return {
     ...primary,
     gas: { ...primary.gas, gasPrice, bufferedCost },
+    transaction: { ...primary.transaction, gasPrice: quantity(gasPrice) },
     independentChecked: true,
     independent: {
       blockNumber: independent.blockNumber, blockHash: independent.blockHash,
@@ -71,6 +85,23 @@ export function reconcileControlledPreparations(primary: Awaited<ReturnType<type
       observedGasPrice: independent.gas.gasPrice
     }
   };
+}
+
+// A missing receipt cannot prove that a transaction was never broadcast.
+// Recovery therefore keeps the saved nonce and exact deployment, never clears
+// the lock to send a new nonce, and still requires a new owner wallet review.
+export async function assertControlledRetryNonce(client: PublicClient, verifier: PublicClient, owner: Address, nonce: number) {
+  owner = controlledOwner(owner);
+  if (!Number.isSafeInteger(nonce) || nonce < 0) throw new Error("Valid saved deployment nonce required");
+  const reads = await Promise.all([client, verifier].map(async rpc => {
+    if (await rpc.getChainId() !== 97) throw new Error("BSC testnet 97 only");
+    return Promise.all([
+      rpc.getTransactionCount({ address: owner, blockTag: "latest" }),
+      rpc.getTransactionCount({ address: owner, blockTag: "pending" })
+    ]);
+  }));
+  if (!reads.every(counts => counts.every(count => count === nonce)))
+    throw new Error("Saved nonce is mined, pending, or disagrees across RPCs. Recover and verify the original transaction; no retry prepared.");
 }
 
 async function inspectControlled(client: PublicClient, owner: Address, hash: Hash, expectedNonce?: number) {

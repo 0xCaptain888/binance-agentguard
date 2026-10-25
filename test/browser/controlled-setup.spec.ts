@@ -10,6 +10,15 @@ const key = `agentguard:controlled:97:${owner}`, refreshKey = `${key}:refresh:${
 const saved = { state: "SUBMITTED", to: feed0, nonce: 7, hash: refreshHash, requestedAt: 1 };
 const proof = { state: "VERIFIED", chainId: 97, owner, transactionHash: deploymentHash,
   dependencyMode: "CONTROLLED_TEST_ASSETS", primary: { contractAddress: owner, dependencies: { feed0, feed1 } } };
+const unsignedTransaction = { from: owner, data: "0x1234", value: "0x0", chainId: "0x61",
+  type: "0x0", gas: "0x124f80", gasPrice: "0x3b9aca00" };
+const preparation = () => ({
+  status: "UNSIGNED_CONTROLLED_TESTNET_DEPLOYMENT", owner, chainId: 97, independentChecked: true,
+  dependencyMode: "CONTROLLED_TEST_ASSETS", preparedAt: Date.now(),
+  gas: { estimate: "1000000", limit: "1200000", gasPrice: "1000000000",
+    bufferedCost: "1200000000000000", ownerBalance: "1000000000000000000" },
+  transaction: unsignedTransaction
+});
 
 async function install(context: BrowserContext) {
   for (const path of ["index.html", "app.js"]) {
@@ -21,11 +30,9 @@ async function install(context: BrowserContext) {
   await context.route("**/api/v1/controlled", route => route.fulfill({ json: {
     owner, chainId: 97, dependencyMode: "CONTROLLED_TEST_ASSETS", note: "Synthetic fixed $1 test feeds. Not market execution."
   } }));
-  await context.route("**/api/v1/controlled/prepare", route => route.fulfill({ json: {
-    status: "UNSIGNED_CONTROLLED_TESTNET_DEPLOYMENT", owner, chainId: 97, independentChecked: true,
-    dependencyMode: "CONTROLLED_TEST_ASSETS", preparedAt: Date.now(),
-    gas: { estimate: "1000000", bufferedCost: "1000000000000000" },
-    transaction: { from: owner, data: "0x1234", value: "0x0", chainId: "0x61" }
+  await context.route("**/api/v1/controlled/prepare", route => route.fulfill({ json: preparation() }));
+  await context.route("**/api/v1/controlled/prepare-retry", route => route.fulfill({ json: {
+    ...preparation(), retryNonce: route.request().postDataJSON().nonce
   } }));
   await context.route("**/api/v1/controlled/verify", route => route.fulfill({ json: {
     ...proof, expectedNonce: route.request().postDataJSON().nonce
@@ -90,7 +97,7 @@ test("controlled setup selects OKX, not the injected MetaMask default, and requi
   await expect(page.locator("#deploy")).toBeDisabled(); await readyDeploy(page);
   expect(await sends(page)).toEqual([]);
   await page.locator("#deploy").click(); await expect(page.locator("#hash")).toHaveValue(deploymentHash);
-  expect(await sends(page)).toEqual([{ from: owner, data: "0x1234", value: "0x0", chainId: "0x61", nonce: "0x7" }]);
+  expect(await sends(page)).toEqual([{ ...unsignedTransaction, nonce: "0x7" }]);
   expect(await page.evaluate(() => (window as any).metamaskCalls)).toBe(0);
   await page.reload(); await connect(page); await page.locator('#ack').check(); await page.locator('#prepare').click();
   await expect(page.locator("#deploy")).toBeDisabled();
@@ -223,12 +230,156 @@ for (const kind of ["deployment", "refresh"]) test(`disconnect during the ${kind
   expect((await sends(page)).length).toBe(1);
 });
 
-test("uncertain deployment survives reload and never permits another send", async ({ page }) => {
+test("uncertain deployment survives reload and never unlocks a new-nonce send", async ({ page }) => {
   await open(page); await readyDeploy(page);
   await page.evaluate(() => { (window as any).walletStub.error = 4900; });
   await page.locator("#deploy").click(); await expect(page.locator("#result")).toContainText("Submission uncertain");
   await page.reload(); await connect(page); await page.locator("#ack").check(); await page.locator("#prepare").click();
   await expect(page.locator("#deploy")).toBeDisabled(); expect(await sends(page)).toEqual([]);
+});
+
+const interruptedDeployment = { state: "WALLET_REQUESTED", nonce: 7, requestedAt: 1 };
+async function seedDeployment(page: Page, record: unknown = interruptedDeployment) {
+  await open(page);
+  await page.evaluate(({ key, record }) => localStorage.setItem(key,
+    typeof record === "string" ? record : JSON.stringify(record)), { key, record });
+  await page.reload();
+}
+async function readyRetry(page: Page) {
+  await seedDeployment(page); await connect(page); await page.locator("#ack").check();
+  await page.locator("#retry-recovery summary").click(); await page.locator("#retry-ack").check();
+  await expect(page.locator("#retry")).toBeEnabled(); await expect(page.locator("#deploy")).toBeDisabled();
+}
+
+test("hashless recovery needs both acknowledgements and submits only the saved nonce with explicit fees", async ({ page }) => {
+  await seedDeployment(page);
+  await expect(page.locator("#retry-recovery")).toBeVisible();
+  await page.locator("#retry-recovery summary").click();
+  await expect(page.locator("#retry")).toBeDisabled();
+  await connect(page); await page.locator("#retry-ack").check();
+  await expect(page.locator("#retry")).toBeDisabled();
+  await page.locator("#ack").check(); await page.locator("#retry-ack").uncheck();
+  await expect(page.locator("#retry")).toBeDisabled();
+  await page.locator("#retry-ack").check();
+  await page.locator("#retry").click(); await expect(page.locator("#hash")).toHaveValue(deploymentHash);
+  expect(await sends(page)).toEqual([{ ...unsignedTransaction, nonce: "0x7" }]);
+  expect(await page.evaluate(key => JSON.parse(localStorage.getItem(key)!), key)).toMatchObject({
+    ...interruptedDeployment, state: "SUBMITTED", hash: deploymentHash
+  });
+  await expect(page.locator("#deploy")).toBeDisabled();
+  await expect(page.locator("#retry-recovery")).toBeHidden();
+});
+
+for (const record of [
+  { state: "SUBMITTED", nonce: 7, hash: deploymentHash },
+  { state: "VERIFIED", nonce: 7, hash: deploymentHash },
+  { ...interruptedDeployment, hash: deploymentHash },
+  { state: "WALLET_REQUESTED" },
+  { ...interruptedDeployment, nonce: -1 },
+  "WALLET_REQUESTED", deploymentHash, "{broken"
+]) test(`recovery never enables a retry for ${JSON.stringify(record)}`, async ({ page }) => {
+  await seedDeployment(page, record); await connect(page); await page.locator("#ack").check();
+  await page.locator("#prepare").click();
+  await expect(page.locator("#retry-recovery")).toBeHidden();
+  await expect(page.locator("#deploy")).toBeDisabled(); expect(await sends(page)).toEqual([]);
+});
+
+for (const code of [4001, 4900]) test(`same-nonce wallet error ${code} preserves the original recovery lock`, async ({ page }) => {
+  await readyRetry(page);
+  const original = await page.evaluate(key => localStorage.getItem(key), key);
+  await page.evaluate(code => { (window as any).walletStub.error = code; }, code);
+  await page.locator("#retry").click();
+  await expect(page.locator("#notice")).toContainText(code === 4001 ? "Original recovery lock retained" : "Wallet interrupted");
+  const record = await page.evaluate(key => localStorage.getItem(key), key);
+  if (code === 4001) expect(record).toBe(original);
+  else expect(JSON.parse(record!)).toMatchObject(interruptedDeployment);
+  expect(await sends(page)).toEqual([{ ...unsignedTransaction, nonce: "0x7" }]);
+  await expect(page.locator("#retry-ack")).not.toBeChecked();
+  await expect(page.locator("#deploy")).toBeDisabled();
+  await page.reload(); await connect(page);
+  await expect(page.locator("#retry-recovery")).toBeVisible();
+  await expect(page.locator("#deploy")).toBeDisabled(); expect(await sends(page)).toEqual([]);
+});
+
+for (const failure of ["RPC disagreement", "wrong confirmed nonce", "wallet nonce mismatch"]) test(`same-nonce recovery blocks ${failure} without changing the saved request`, async ({ page }) => {
+  await readyRetry(page);
+  const original = await page.evaluate(key => localStorage.getItem(key), key);
+  if (failure === "wallet nonce mismatch")
+    await page.evaluate(() => { (window as any).walletStub.nonce = "0x8"; });
+  else await page.route("**/api/v1/controlled/prepare-retry", route => route.fulfill(
+    failure === "RPC disagreement" ? { status: 409, json: { error: "Independent nonce disagreement" } } :
+      { json: { ...preparation(), retryNonce: 8 } }));
+  await page.locator("#retry").click();
+  await expect(page.locator("#notice")).toContainText(failure === "RPC disagreement" ? "nonce disagreement" :
+    failure === "wrong confirmed nonce" ? "did not confirm the saved nonce" : "pending nonce differs");
+  expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(original);
+  await expect(page.locator("#deploy")).toBeDisabled(); expect(await sends(page)).toEqual([]);
+});
+
+for (const field of ["type", "gas", "gasPrice", "maxFeePerGas", "limit", "bufferedCost", "ownerBalance", "data"])
+  test(`deployment and same-nonce recovery refuse an inconsistent ${field}`, async ({ page }) => {
+    await readyRetry(page);
+    const invalidPreparation = () => {
+      const value = preparation();
+      value.transaction = { ...value.transaction };
+      if (field === "type") value.transaction.type = "0x2";
+      else if (field === "gas" || field === "gasPrice") value.transaction[field] = "0x0";
+      else if (field === "maxFeePerGas") Object.assign(value.transaction, { maxFeePerGas: "0x1" });
+      else if (field === "data") value.transaction.data = "0x123";
+      else value.gas[field as "limit" | "bufferedCost" | "ownerBalance"] = "1";
+      return value;
+    };
+    await page.route("**/api/v1/controlled/prepare", route => route.fulfill({ json: invalidPreparation() }));
+    await page.locator("#prepare").click(); await expect(page.locator("#notice")).toContainText("Prepare again");
+    await expect(page.locator("#deploy")).toBeDisabled();
+    await page.route("**/api/v1/controlled/prepare-retry", route => route.fulfill({ json: {
+      ...invalidPreparation(), retryNonce: 7
+    } }));
+    const original = await page.evaluate(key => localStorage.getItem(key), key);
+    await page.locator("#retry").click(); await expect(page.locator("#notice")).toContainText("Prepare again");
+    expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(original);
+    expect(await sends(page)).toEqual([]);
+  });
+
+for (const stage of ["prepare", "nonce"]) {
+  for (const change of ["account", "network", "disconnect", "storage"])
+    test(`same-nonce recovery blocks a ${change} change during ${stage}`, async ({ page }) => {
+      await readyRetry(page);
+      const original = await page.evaluate(key => localStorage.getItem(key), key);
+      const changedRecord = JSON.stringify({ ...interruptedDeployment, nonce: 8 });
+      const mutate = async () => page.evaluate(({ change, key, changedRecord }) => {
+        const s = (window as any).walletStub;
+        if (change === "storage") localStorage.setItem(key, changedRecord);
+        else if (change === "account") { s.account = "0x0000000000000000000000000000000000000002"; s.events.accountsChanged([s.account]); }
+        else if (change === "network") { s.chain = "0x38"; s.events.chainChanged(s.chain); }
+        else s.events.disconnect();
+      }, { change, key, changedRecord });
+      if (stage === "prepare") await page.route("**/api/v1/controlled/prepare-retry", async route => {
+        await mutate(); await route.fulfill({ json: { ...preparation(), retryNonce: 7 } });
+      });
+      else await page.evaluate(() => { (window as any).walletStub.holdNonce = true; });
+      await page.locator("#retry").click();
+      if (stage === "nonce") {
+        await expect.poll(() => page.evaluate(() => typeof (window as any).walletStub.releaseNonce)).toBe("function");
+        await mutate(); await page.evaluate(() => { (window as any).walletStub.releaseNonce(); });
+      }
+      await expect(page.locator("#notice")).toContainText(change === "storage" ? "Saved request" : "Connect the configured owner");
+      expect(await page.evaluate(key => localStorage.getItem(key), key)).toBe(change === "storage" ? changedRecord : original);
+      await expect(page.locator("#deploy")).toBeDisabled(); expect(await sends(page)).toEqual([]);
+    });
+}
+
+test("cross-tab recovery never opens a second same-nonce wallet dialog", async ({ page, context }) => {
+  await readyRetry(page);
+  const other = await context.newPage(); await open(other); await connect(other);
+  await other.locator("#ack").check(); await other.locator("#retry-recovery summary").click();
+  await other.locator("#retry-ack").check();
+  await page.evaluate(() => { (window as any).walletStub.hold = true; });
+  await page.locator("#retry").click(); await expect.poll(async () => (await sends(page)).length).toBe(1);
+  await other.locator("#retry").click(); await expect(other.locator("#notice")).toContainText("Another tab");
+  expect(await sends(other)).toEqual([]);
+  await page.evaluate(() => { (window as any).walletStub.release(); });
+  await expect(page.locator("#hash")).toHaveValue(deploymentHash);
 });
 
 test("explicit deployment rejection permits a deliberate retry without clearing uncertain requests", async ({ page }) => {

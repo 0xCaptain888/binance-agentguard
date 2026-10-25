@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Hash, PublicClient } from "viem";
-import { controlledOwner, controlledVaultConfig, prepareControlledEnvironment, prepareControlledRefresh,
+import { assertControlledRetryNonce, controlledOwner, controlledVaultConfig, prepareControlledEnvironment, prepareControlledRefresh,
   reconcileControlledPreparations, verifyControlledEnvironment, verifyControlledRefresh, type ControlledProof } from "./controlled.js";
 import { controlledDisclosure } from "./dependency-disclosure.js";
 import { testnetClients } from "./deployment.js";
@@ -34,7 +34,7 @@ export async function startControlledServer(client: PublicClient, verifier: Publ
         if (!files[path]) return reply(404, { error: "Not found" });
         const [file, mime] = files[path]; res.writeHead(200, { "Content-Type": mime }); return res.end(await readFile(resolve(file)));
       }
-      if (req.method !== "POST" || !["prepare", "verify", "config", "refresh", "verify-refresh"].some(action => path === `/api/v1/controlled/${action}`))
+      if (req.method !== "POST" || !["prepare", "prepare-retry", "verify", "config", "refresh", "verify-refresh"].some(action => path === `/api/v1/controlled/${action}`))
         return reply(405, { error: "Method not allowed" });
       if (req.headers.origin !== origin || req.headers["sec-fetch-site"] === "cross-site") return reply(403, { error: "Same-origin request required" });
       if (!req.headers["content-type"]?.startsWith("application/json")) return reply(415, { error: "Send application/json" });
@@ -46,13 +46,21 @@ export async function startControlledServer(client: PublicClient, verifier: Publ
       try {
         input = JSON.parse(Buffer.concat(chunks).toString());
         if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error();
-        const allowed = path.endsWith("/verify-refresh") ? ["hash", "feed", "nonce", "environmentHash"] : path.endsWith("/verify") ? ["hash", "nonce"] : path.endsWith("/config") ? ["operator", "mode", "environmentHash"] : path.endsWith("/refresh") ? ["environmentHash"] : [];
+        const allowed = path.endsWith("/prepare-retry") ? ["nonce"] : path.endsWith("/verify-refresh") ? ["hash", "feed", "nonce", "environmentHash"] : path.endsWith("/verify") ? ["hash", "nonce"] : path.endsWith("/config") ? ["operator", "mode", "environmentHash"] : path.endsWith("/refresh") ? ["environmentHash"] : [];
         if (Object.keys(input).some(key => !allowed.includes(key))) throw new Error();
       } catch { return reply(400, { error: "Invalid setup request" }); }
       if (busy) return reply(409, { error: "Setup inspection already running" });
       busy = true;
       try {
-        if (path.endsWith("/prepare")) {
+        if (path.endsWith("/prepare") || path.endsWith("/prepare-retry")) {
+          const retry = path.endsWith("/prepare-retry");
+          if (retry && (!Number.isSafeInteger(input.nonce) || (input.nonce as number) < 0))
+            return reply(400, { error: "Valid saved deployment nonce required" });
+          const checkRetry = async () => {
+            try { await assertControlledRetryNonce(client, verifier, owner, input.nonce as number); return true; }
+            catch { reply(409, { error: "Saved nonce is mined, pending, or unavailable across the two RPCs. Recover and verify the original transaction; no retry prepared." }); return false; }
+          };
+          if (retry && !await checkRetry()) return;
           const anchor = await client.getBlock();
           if (anchor.number === null || !anchor.hash) return reply(409, { error: "Primary RPC did not provide a mined anchor block" });
           const [independentAnchor, primary, independent] = await Promise.all([
@@ -68,7 +76,8 @@ export async function startControlledServer(client: PublicClient, verifier: Publ
           const stillCanonical = await Promise.all([client, verifier].map(rpc => rpc.getBlock({ blockNumber: anchor.number! })));
           if (stillCanonical.some(block => block.hash !== anchor.hash))
             return reply(409, { error: "Selected block changed during independent inspection. Retry preparation." });
-          return reply(200, { ...reconciled, preparedAt: Date.now() });
+          if (retry && !await checkRetry()) return;
+          return reply(200, { ...reconciled, ...(retry ? { retryNonce: input.nonce } : {}), preparedAt: Date.now() });
         }
         if (path.endsWith("/verify")) {
           proof = undefined;

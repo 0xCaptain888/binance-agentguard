@@ -35,6 +35,25 @@ function deploymentRecord() {
   } catch { /* Invalid saved data remains a lock. */ }
   return { state: 'UNREADABLE' };
 }
+const retryable = record => record?.state === 'WALLET_REQUESTED' && record.hash === undefined &&
+  Number.isSafeInteger(record.nonce) && record.nonce >= 0;
+function deploymentTransaction(value) {
+  const tx = value?.transaction, gas = value?.gas;
+  const positiveQuantity = item => typeof item === 'string' && /^0x[1-9a-f][0-9a-f]*$/i.test(item);
+  if (!tx || tx.to !== undefined || tx.value !== '0x0' || tx.chainId !== '0x61' ||
+    !same(tx.from, state.owner) || !/^0x(?:[0-9a-fA-F]{2})+$/.test(tx.data) ||
+    tx.type !== '0x0' || !positiveQuantity(tx.gas) || !positiveQuantity(tx.gasPrice) ||
+    tx.maxFeePerGas !== undefined || tx.maxPriorityFeePerGas !== undefined)
+    throw new Error('Unexpected deployment transaction. Explicit positive legacy fees and gas are required. Prepare again.');
+  try {
+    if (!gas || !['estimate', 'limit', 'gasPrice', 'bufferedCost', 'ownerBalance'].every(field => typeof gas[field] === 'string' && /^[0-9]+$/.test(gas[field])) ||
+      BigInt(gas.estimate) <= 0n || BigInt(tx.gas) !== BigInt(gas.limit) || BigInt(tx.gasPrice) !== BigInt(gas.gasPrice) ||
+      BigInt(gas.limit) !== (BigInt(gas.estimate) * 120n + 99n) / 100n ||
+      BigInt(gas.bufferedCost) !== BigInt(tx.gas) * BigInt(tx.gasPrice) || BigInt(gas.ownerBalance) < BigInt(gas.bufferedCost))
+      throw new Error();
+  } catch { throw new Error('Deployment gas, fees or funding do not match the independent estimate. Prepare again.'); }
+  return tx;
+}
 async function walletLock(action) {
   if (!navigator.locks?.request) throw new Error('This browser cannot safely coordinate wallet requests across tabs. Use a current browser on localhost.');
   return navigator.locks.request(`${key()}:wallet`, { ifAvailable: true }, async lock => {
@@ -64,15 +83,18 @@ function update() {
   $('connect').textContent = account ? `OKX · ${account.slice(0, 8)}… · Disconnect` : 'Connect OKX Wallet';
   $('wallet-status').textContent = account ? owner ? 'Configured owner connected. Chain and account are rechecked before each request.' : 'Wrong owner. Connect the configured owner address.' : 'Connect the owner with OKX Wallet on BNB Smart Chain Testnet (97).';
   $('prepare').disabled = busy || !state || !$('ack').checked;
-  let deploymentLocked = true;
-  try { deploymentLocked = !!deploymentRecord(); } catch { /* Fail closed. */ }
+  let deploymentLocked = true, record;
+  try { record = deploymentRecord(); deploymentLocked = !!record; } catch { /* Fail closed. */ }
   $('deploy').disabled = busy || recoveryStorageBlocked || !owner || !prepared || Date.now() - prepared.preparedAt > 60000 || attempted || deploymentLocked || !$('ack').checked;
   $('deploy').textContent = attempted ? 'Request started — recover & verify below' : 'Review deployment in OKX Wallet';
+  $('retry-recovery').hidden = !retryable(record);
+  $('retry-status').textContent = retryable(record) ? `Saved nonce: ${record.nonce}. The existing recovery lock stays in place.` : '';
+  $('retry').disabled = busy || recoveryStorageBlocked || !owner || !retryable(record) || !$('retry-ack').checked || !$('ack').checked;
   $('verify').disabled = busy || !state || !hashOK($('hash').value.trim());
   $('download').disabled = busy || !verified;
   $('export').disabled = busy || !verified || !['OWNER_MANUAL', 'DELEGATED'].includes($('mode').value) || !/^0x[0-9a-fA-F]{40}$/.test($('operator').value.trim());
   $('refresh').disabled = busy || !verified;
-  for (const id of ['hash', 'ack', 'mode', 'operator']) $(id).disabled = busy;
+  for (const id of ['hash', 'ack', 'retry-ack', 'mode', 'operator']) $(id).disabled = busy;
   document.querySelectorAll('#refresh-actions input, #refresh-actions button:not([data-feed])').forEach(control => { control.disabled = busy; });
   document.querySelectorAll('[data-feed]').forEach(button => {
     let used = true; try { used = !!refreshRecord(button.dataset.feed); } catch { /* Disable without durable recovery. */ }
@@ -99,24 +121,26 @@ $('connect').addEventListener('click', () => work(async () => {
   const provider = selectOKXProvider(wallets.values(), window.okxwallet, window.ethereum);
   await connection.connect(provider);
 }));
-async function prepare() {
+async function prepare(retryNonce) {
   prepared = undefined; update();
-  const value = await api('/prepare', {});
+  const retry = retryNonce !== undefined;
+  const value = await api(retry ? '/prepare-retry' : '/prepare', retry ? { nonce: retryNonce } : {});
   if (value.status !== 'UNSIGNED_CONTROLLED_TESTNET_DEPLOYMENT' || !same(value.owner, state.owner) ||
     value.chainId !== 97 || value.independentChecked !== true || value.dependencyMode !== 'CONTROLLED_TEST_ASSETS') throw new Error('Unexpected setup response.');
   if (!Number.isFinite(value.preparedAt) || Date.now() - value.preparedAt > 60000 || value.preparedAt > Date.now() + 5000)
     throw new Error('Deployment preparation is stale or mismatched. Prepare again.');
+  if (retry && value.retryNonce !== retryNonce) throw new Error('Retry preparation did not confirm the saved nonce.');
+  deploymentTransaction(value);
   prepared = value;
   $('transaction').textContent = JSON.stringify(value, null, 2);
-  $('gas').textContent = `Estimated gas: ${value.gas.estimate} units. Cost + 20%: ${(Number(value.gas.bufferedCost) / 1e18).toFixed(6)} test BNB. Rechecked before signing.`;
+  $('gas').textContent = `Estimated gas: ${value.gas.estimate} units. Limit (+20%): ${value.gas.limit}. Legacy gas price: ${Number(value.gas.gasPrice) / 1e9} Gwei. Maximum fee at this limit: ${(Number(value.gas.bufferedCost) / 1e18).toFixed(8)} test BNB. Rechecked before signing.`;
 }
 $('prepare').addEventListener('click', () => work(prepare));
 $('deploy').addEventListener('click', () => work(() => walletLock(async () => {
   if (recoveryStorageBlocked || attempted || deploymentRecord() || !$('ack').checked) return;
   const wallet = await assertWallet(); await prepare(); await assertWallet(wallet);
   if (!$('ack').checked || deploymentRecord()) throw new Error('Review acknowledgement and saved wallet requests before continuing.');
-  const tx = prepared.transaction;
-  if (tx.to || tx.value !== '0x0' || tx.chainId !== '0x61' || !same(tx.from, account) || !/^0x[0-9a-fA-F]+$/.test(tx.data)) throw new Error('Unexpected deployment transaction.');
+  const tx = deploymentTransaction(prepared);
   const nonce = await pendingWalletNonce(wallet.provider, wallet.account);
   await assertWallet(wallet);
   if (!$('ack').checked || deploymentRecord()) throw new Error('Review acknowledgement and saved wallet requests before continuing.');
@@ -131,6 +155,36 @@ $('deploy').addEventListener('click', () => work(() => walletLock(async () => {
     if (Number(error.code) === 4001) { localStorage.removeItem(key()); attempted = false; throw new Error('Wallet rejected the request. No automatic retry.'); }
     $('result').textContent = 'Submission uncertain. Check wallet Activity and recover the hash. Resending stays disabled.'; throw error;
   }
+})));
+$('retry').addEventListener('click', () => work(() => walletLock(async () => {
+  const original = localStorage.getItem(key()), saved = deploymentRecord();
+  const unchanged = () => {
+    if (recoveryStorageBlocked || localStorage.getItem(key()) !== original || !retryable(saved) ||
+      !$('retry-ack').checked || !$('ack').checked)
+      throw new Error('Saved request or acknowledgement changed. Keep the recovery lock and inspect Activity.');
+  };
+  unchanged();
+  const wallet = await assertWallet(); await prepare(saved.nonce); await assertWallet(wallet); unchanged();
+  const tx = deploymentTransaction(prepared), nonce = await pendingWalletNonce(wallet.provider, wallet.account);
+  await assertWallet(wallet); unchanged();
+  if (nonce !== saved.nonce) throw new Error('Wallet pending nonce differs from the saved request. No retry requested. Recover the original hash.');
+  const requested = { ...saved, retryRequestedAt: Date.now() };
+  marker(key(), JSON.stringify(requested)); attempted = true;
+  try {
+    const hash = await wallet.provider.request({ method: 'eth_sendTransaction', params: [{ ...tx, nonce: `0x${saved.nonce.toString(16)}` }] });
+    if (!hashOK(hash)) throw new Error('Wallet returned no valid transaction hash.');
+    $('hash').value = hash; invalidateProof();
+    marker(key(), JSON.stringify({ ...requested, state: 'SUBMITTED', hash }));
+    $('result').textContent = 'Same-nonce deployment submitted. Wait for two confirmations, then verify through both RPCs.';
+  } catch (error) {
+    // Rejecting a replacement does not establish that the ORIGINAL was rejected.
+    if (Number(error.code) === 4001) {
+      marker(key(), original);
+      throw new Error('Wallet rejected the same-nonce review. Original recovery lock retained. No automatic retry.');
+    }
+    $('result').textContent = 'Submission uncertain. Original nonce retained. Check wallet Activity and recover the hash; never send a new nonce.';
+    throw error;
+  } finally { $('retry-ack').checked = false; }
 })));
 $('hash').addEventListener('input', () => { invalidateProof(); $('result').textContent = 'Verify the entered deployment hash.'; update(); });
 $('verify').addEventListener('click', () => work(async () => {
@@ -155,7 +209,7 @@ $('verify').addEventListener('click', () => work(async () => {
     } finally { renderRefresh(); }
   }
 }));
-for (const id of ['ack', 'mode', 'operator']) $(id).addEventListener('input', () => {
+for (const id of ['ack', 'retry-ack', 'mode', 'operator']) $(id).addEventListener('input', () => {
   if (id === 'mode' && $('mode').value === 'OWNER_MANUAL') $('operator').value = state?.owner || '';
   if (id === 'mode' && $('mode').value === 'DELEGATED' && same($('operator').value, state?.owner)) $('operator').value = '';
   update();

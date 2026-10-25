@@ -107,10 +107,18 @@ The setup service is loopback-only, stores no signing key, rejects hostile
 origins, and requires the owner to confirm each wallet request in OKX Wallet.
 Before returning an unsigned deployment, it anchors both RPC reads to the same
 recent block, compares the block hash, owner balance, deployment gas estimate,
-and init code, and applies the higher observed gas price to the 20% buffer.
+and init code. The actual unsigned legacy transaction includes the 20%-buffered
+gas limit and the higher observed positive gas price; its displayed maximum
+fee matches those exact fields.
 Any disagreement fails closed and no wallet request is opened.
 An uncertain wallet response keeps its exact hash/nonce recovery lock across
-reloads; only an explicit wallet rejection permits a deliberate retry. If
+reloads. A hashless `WALLET_REQUESTED` record with a valid saved nonce has a
+separate, explicitly acknowledged recovery action: both RPCs must report that
+same nonce for both `latest` and `pending`, before and after preparation, and
+the wallet must still report it before opening a new review. The deployment
+data and saved nonce are retained; ordinary deployment stays locked. Records
+with a hash must be recovered and verified instead. Rejecting a recovery review
+keeps the original lock. If
 browser storage is unavailable, new sends are disabled while verified evidence
 and recovery controls remain visible. The saved controlled config is created
 exclusively and never overwrites an existing config. Deployment recovery binds
@@ -142,11 +150,21 @@ returned as hex strings, decimal strings, numbers or bigints. A valid nonce of
 zero is preserved; missing, malformed or unsafe values stop before any send or
 new recovery record. Nonce errors report the received type/format without
 printing arbitrary provider data. The exact nonce remains bound to the saved
-request and independent RPC verification; uncertain submissions cannot be retried.
+request and independent RPC verification; uncertain submissions never unlock a
+new-nonce resend. The narrow hashless recovery action described above requires
+fresh independent checks, acknowledgement and wallet confirmation.
 The nonce compatibility patch passes all 151 local Node tests, type checking and
 site verification. Its controlled-setup browser suite has 57 cases; local
 Chromium launch is blocked by the macOS sandbox, so browser validation runs in
 Ubuntu CI. See the [patch validation notes](docs/releases/okx-pending-nonce-compatibility.md).
+
+The subsequent deployment-envelope patch passes all 154 local Node tests,
+including mining the exact prepared legacy envelope and independently verifying
+it on an isolated chain-97 fixture. Browser collection finds 112 cases, including
+88 controlled-setup cases; collection is not execution, and local Chromium still
+cannot launch under the macOS sandbox. The Ubuntu CI job executes these cases.
+See the [deployment and recovery notes](docs/releases/okx-controlled-deployment-envelope.md)
+for the reported wallet error, scope and remaining public-testnet validation.
 
 ```bash
 cp config/bsc-testnet.example.json config/bsc-testnet.json

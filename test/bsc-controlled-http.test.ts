@@ -107,6 +107,33 @@ test("controlled preparation fails closed when the independent RPC disagrees on 
     }, verifier);
   }
 });
+test("same-nonce HTTP preparation is keyless, strictly validated and refuses RPC nonce disagreement", async () => {
+  const nonce = await f.client.getTransactionCount({ address: f.owner, blockTag: "pending" });
+  await server(async ({ origin }) => {
+    for (const body of [{}, { nonce: -1 }, { nonce: "0x1" }, { nonce, owner: f.stranger }])
+      assert.equal((await post(origin, "prepare-retry", body)).status, 400);
+    const response = await post(origin, "prepare-retry", { nonce });
+    assert.equal(response.status, 200);
+    const prepared = await response.json() as any;
+    assert.equal(prepared.retryNonce, nonce); assert.equal(prepared.independentChecked, true);
+    assert.equal(prepared.transaction.type, "0x0"); assert.ok(BigInt(prepared.transaction.gasPrice) > 0n);
+    assert.equal((await post(origin, "prepare-retry", { nonce: nonce + 1 })).status, 409);
+    assert.equal((await post(origin, "prepare-retry", { nonce }, { Origin: "https://attacker.invalid" })).status, 403);
+  });
+  for (const changeAt of [1, 3]) {
+    let reads = 0;
+    const advanced = new Proxy(f.client, { get(target, key) {
+      if (key === "getTransactionCount") return async () => ++reads >= changeAt ? nonce + 1 : nonce;
+      return Reflect.get(target, key);
+    } });
+    await server(async ({ origin }) => {
+      const response = await post(origin, "prepare-retry", { nonce });
+      assert.equal(response.status, 409);
+      assert.match(await response.text(), /no retry prepared/);
+    }, advanced);
+  }
+  assert.equal(await f.client.getTransactionCount({ address: f.owner, blockTag: "pending" }), nonce);
+});
 test("controlled service fails closed without leaking private RPC details and applies a request limit", async () => {
   const unavailable = new Proxy(f.client, { get(target, key) {
     return key === "getBlock" ? async () => { throw new Error("https://private-rpc.invalid/private-api-key"); } : Reflect.get(target, key);
