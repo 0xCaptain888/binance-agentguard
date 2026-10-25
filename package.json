@@ -38,7 +38,7 @@
     "@playwright/test": "^1.64.1",
     "@types/node": "^20.12.12",
     "solc": "0.8.38",
-    "tsx": "^4.19.4",
+    "tsx": "^4.23.15",
     "typescript": "^5.4.5"
   },
   "overrides": { "tmp": "0.2.7" },
