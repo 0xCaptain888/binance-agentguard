@@ -43,36 +43,40 @@ calldata/events/transfers from canonical RPC data, and generates receipts. It
 never uses public funds and explicitly marks every receipt `campaignProof:
 false`.
 
-The Linux CI launches the actual local service in Chromium and checks
-desktop execution/freeze/reset, the mobile wallet entry and horizontal
-layout, owner controls during an oracle outage, wallet deployment safeguards,
-rebalance submission recovery after reload or explicit wallet rejection, and
-wallet changes during login/submission plus session timeout and HTTP 401 recovery.
-All 51 browser cases passed in the Node 22 job of
-[Linux CI on October 26, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40231420801),
-alongside all 129 Node tests on both Node 20.18 and Node 22 and the public-testnet
+The Linux CI launches the actual local service in Chromium and checks desktop
+execution/freeze/reset, the mobile wallet entry and horizontal layout, owner
+controls during an oracle outage, wallet deployment safeguards, same-nonce
+recovery after an interrupted wallet response, rebalance submission recovery
+after reload or explicit wallet rejection, and wallet changes during
+login/submission plus session timeout and HTTP 401 recovery. The current
+114-case browser suite passed in the Node 22 job of
+[Linux CI on October 26, 2026 (UTC+8)](https://github.com/0xCaptain888/binance-agentguard/actions/runs/40250298092),
+alongside all 154 Node tests on Node 20.18 and Node 22 and the public-testnet
 Docker build. The timestamp-sensitive feed-refresh gas estimate now includes
 a 20% gas buffer and a timestamp-boundary regression.
 Coverage includes owner-reviewed ERC-8004 registration, proof inspection,
-interrupted wallet recovery and unavailable browser storage. The local EVM avoids
-the console port, and browser startup waits for the HTTP health endpoint.
-Wallet deployment/session cases use wallet and RPC stubs; the local trade cases
-execute actual Anvil contract bytecode. Local macOS browser execution remains
-blocked by the sandbox and is not reported as locally passing. Run the suite with:
+interrupted wallet recovery, same-nonce deployment recovery and unavailable
+browser storage. The local EVM avoids the console port, and browser startup
+waits for the HTTP health endpoint. Wallet deployment/session cases use wallet
+and RPC stubs; the local trade cases execute actual Anvil contract bytecode.
+Local macOS browser and loopback-service execution remain blocked by the
+desktop sandbox and are not reported as locally passing. Run the suite with:
 
 ```bash
 npx playwright install chromium
 npm run bsc:browser
 ```
 
-Local regression on October 26, 2026 (UTC+8): `npm run bsc:check` passed
-type checking, all 129 Node tests and the local VERIFIED/BLOCKED/FROZEN contract
-demonstration. The controlled-setup file contains 27 browser cases, including
-nonce recovery and wallet disconnect races, included in the 51 passing CI cases.
-The fork relay tests cover write rejection, bounded retries and safe failures.
-`npm run verify:site` also passed all 29 required signals. Local macOS
-Chromium still cannot register its Mach port under the sandbox; Ubuntu CI
-provides the real-browser regression path.
+Local static regression on October 26, 2026 (UTC+8) passed type checking,
+JavaScript syntax checks, the local VERIFIED/BLOCKED/FROZEN contract
+demonstration and `npm run verify:site` (29 required signals). The repository
+currently contains 154 Node tests and 114 browser cases. The full Node suite is
+green in the Ubuntu CI run linked above; on this macOS desktop sandbox, tests
+that start loopback HTTP services fail before their assertions with
+`listen EPERM: operation not permitted 127.0.0.1`, so that local limitation is
+reported rather than hidden. The fork relay tests cover write rejection,
+bounded retries and safe failures. Ubuntu CI provides the real-browser and
+loopback-service regression path.
 
 Browser screenshots are test artifacts, not campaign evidence.
 
@@ -153,16 +157,18 @@ printing arbitrary provider data. The exact nonce remains bound to the saved
 request and independent RPC verification; uncertain submissions never unlock a
 new-nonce resend. The narrow hashless recovery action described above requires
 fresh independent checks, acknowledgement and wallet confirmation.
-The nonce compatibility patch passes all 151 local Node tests, type checking and
-site verification. Its controlled-setup browser suite has 57 cases; local
-Chromium launch is blocked by the macOS sandbox, so browser validation runs in
+The nonce compatibility patch is covered by the current 154-test Node suite,
+type checking and site verification. Its controlled-setup browser cases include
+nonce recovery and wallet disconnect races; local Chromium and loopback
+execution are blocked by the macOS sandbox, so browser validation runs in
 Ubuntu CI. See the [patch validation notes](docs/releases/okx-pending-nonce-compatibility.md).
 
-The subsequent deployment-envelope patch passes all 154 local Node tests,
+The subsequent deployment-envelope patch is covered by all 154 Node tests,
 including mining the exact prepared legacy envelope and independently verifying
-it on an isolated chain-97 fixture. Browser collection finds 112 cases, including
-88 controlled-setup cases; collection is not execution, and local Chromium still
-cannot launch under the macOS sandbox. The Ubuntu CI job executes these cases.
+it on an isolated chain-97 fixture. The current browser collection contains 114
+cases, including the controlled-setup recovery cases; the Ubuntu CI job executes
+the suite because local Chromium and loopback service startup are blocked by the
+macOS sandbox.
 See the [deployment and recovery notes](docs/releases/okx-controlled-deployment-envelope.md)
 for the reported wallet error, scope and remaining public-testnet validation.
 
@@ -327,9 +333,10 @@ npm run judge:check
 
 The simulator never moves funds. `judge:check` validates the original CEX path,
 including its nine policy/verification tests, three Agent states, both public
-evidence bundles, and required Judge Console signals. The repository now has 90
-Node tests in total: the original nine plus 81 BSC contract, service,
-configuration, deployment, submission, wallet-session and operations tests.
+evidence bundles, and required Judge Console signals. The repository now has
+154 Node tests in total, covering the original CEX path plus BSC contract,
+service, configuration, deployment, submission, wallet-session, recovery and
+operations tests.
 
 The public console demonstrates the same flow without a wallet, API key, OAuth token, or account. It clearly labels simulator evidence.
 
