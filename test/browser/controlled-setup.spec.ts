@@ -270,6 +270,29 @@ test("hashless recovery needs both acknowledgements and submits only the saved n
   await expect(page.locator("#retry-recovery")).toBeHidden();
 });
 
+test("a saved request exposes a working navigation button instead of inviting a duplicate deployment", async ({ page }) => {
+  await seedDeployment(page);
+  await expect(page.locator("#deploy")).toBeDisabled();
+  await expect(page.locator("#open-recovery")).toBeVisible();
+  await page.locator("#open-recovery").click();
+  await expect(page.locator("#verification-section")).toBeInViewport();
+  await expect(page.locator("#retry-recovery")).toHaveJSProperty("open", true);
+  await expect(page.locator("#retry-ack")).toBeFocused();
+  expect(await sends(page)).toEqual([]);
+});
+
+test("a legacy hashless request without a saved nonce directs to hash verification but never unlocks resend", async ({ page }) => {
+  await seedDeployment(page, { state: "WALLET_REQUESTED" });
+  await expect(page.locator("#deploy")).toBeDisabled();
+  await expect(page.locator("#retry-recovery")).toBeHidden();
+  await expect(page.locator("#open-recovery")).toBeVisible();
+  await page.locator("#open-recovery").click();
+  await expect(page.locator("#verification-section")).toBeInViewport();
+  await expect(page.locator("#hash")).toBeFocused();
+  await expect(page.locator("#deploy")).toBeDisabled();
+  expect(await sends(page)).toEqual([]);
+});
+
 for (const record of [
   { state: "SUBMITTED", nonce: 7, hash: deploymentHash },
   { state: "VERIFIED", nonce: 7, hash: deploymentHash },

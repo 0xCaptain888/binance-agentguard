@@ -86,7 +86,14 @@ function update() {
   let deploymentLocked = true, record;
   try { record = deploymentRecord(); deploymentLocked = !!record; } catch { /* Fail closed. */ }
   $('deploy').disabled = busy || recoveryStorageBlocked || !owner || !prepared || Date.now() - prepared.preparedAt > 60000 || attempted || deploymentLocked || !$('ack').checked;
-  $('deploy').textContent = attempted ? 'Request started — recover & verify below' : 'Review deployment in OKX Wallet';
+  const hasSavedRequest = !!record || attempted;
+  $('deploy').textContent = attempted ? 'Request started — use recovery below' : 'Review deployment in OKX Wallet';
+  $('deployment-action-help').hidden = !hasSavedRequest;
+  $('deployment-action-help').textContent = retryable(record)
+    ? 'A wallet request is already saved. Check OKX Wallet Activity, then use the same-nonce recovery flow below. No new nonce will be created.'
+    : 'A wallet request is already saved. Check OKX Wallet Activity, paste its hash in step 02, and verify it through both RPCs. No duplicate request will be sent.';
+  $('open-recovery').hidden = !hasSavedRequest;
+  $('open-recovery').textContent = retryable(record) ? 'Open same-nonce recovery ↓' : 'Open verification ↓';
   $('retry-recovery').hidden = !retryable(record);
   $('retry-status').textContent = retryable(record) ? `Saved nonce: ${record.nonce}. The existing recovery lock stays in place.` : '';
   $('retry').disabled = busy || recoveryStorageBlocked || !owner || !retryable(record) || !$('retry-ack').checked || !$('ack').checked;
@@ -156,6 +163,14 @@ $('deploy').addEventListener('click', () => work(() => walletLock(async () => {
     $('result').textContent = 'Submission uncertain. Check wallet Activity and recover the hash. Resending stays disabled.'; throw error;
   }
 })));
+$('open-recovery').addEventListener('click', () => {
+  let record;
+  try { record = deploymentRecord(); } catch { /* The status message is already rendered. */ }
+  const recovery = $('retry-recovery');
+  if (retryable(record)) recovery.open = true;
+  $('verification-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  window.setTimeout(() => (retryable(record) ? $('retry-ack') : $('hash')).focus(), 250);
+});
 $('retry').addEventListener('click', () => work(() => walletLock(async () => {
   const original = localStorage.getItem(key()), saved = deploymentRecord();
   const unchanged = () => {
