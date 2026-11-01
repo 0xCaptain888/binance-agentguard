@@ -44,6 +44,6 @@
   "overrides": { "tmp": "0.2.7" },
   "dependencies": {
     "@openzeppelin/contracts": "^5.6.1",
-    "viem": "^2.57.11"
+    "viem": "^2.57.13"
   }
 }
