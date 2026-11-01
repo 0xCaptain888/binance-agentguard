@@ -43,7 +43,7 @@ jobs:
         run: npm run bsc:browser
       - name: Preserve browser reports and screenshots
         if: always() && matrix.node == '22.x'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: bsc-browser-results
           path: |
